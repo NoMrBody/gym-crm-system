@@ -7,24 +7,30 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Random;
 
 @Service
 public class TrainerService {
     private static final Logger log = LoggerFactory.getLogger(TrainerService.class);
 
     private TrainerDAO trainerDAO;
+    private ProfileService profileService;
+
 
     @Autowired
     public void setTrainerDAO(TrainerDAO trainerDAO) {
         this.trainerDAO = trainerDAO;
     }
 
+    @Autowired
+    public void setProfileService(ProfileService profileService) {
+        this.profileService = profileService;
+    }
+
     public Trainer create(Trainer trainer) {
         log.info("Creating profile for Trainer: {} {}", trainer.getFirstName(), trainer.getLastName());
 
-        trainer.setUsername(generateUsername(trainer.getFirstName(), trainer.getLastName()));
-        trainer.setPassword(generatePassword());
+        trainer.setUsername(profileService.generateUsername(trainer.getFirstName(), trainer.getLastName()));
+        trainer.setPassword(profileService.generatePassword());
         trainer.setActive(true);
 
         return trainerDAO.create(trainer);
@@ -40,30 +46,4 @@ public class TrainerService {
         return trainerDAO.getById(id);
     }
 
-    private String generateUsername(String firstName, String lastName) {
-        String baseUsername = firstName + "." + lastName;
-        String finalUsername = baseUsername;
-        int serial = 1;
-
-        while (usernameExists(finalUsername)) {
-            finalUsername = baseUsername + serial;
-            serial++;
-        }
-        return finalUsername;
-    }
-
-    private boolean usernameExists(String username) {
-        return trainerDAO.getAll().stream()
-                .anyMatch(t -> username.equals(t.getUsername()));
-    }
-
-    private String generatePassword() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder password = new StringBuilder(10);
-        Random random = new Random();
-        for (int i = 0; i < 10; i++) {
-            password.append(chars.charAt(random.nextInt(chars.length())));
-        }
-        return password.toString();
-    }
 }

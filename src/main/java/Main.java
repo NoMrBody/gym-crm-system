@@ -6,7 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
-import java.util.Date;
+import java.time.LocalDate;
+import java.time.Month;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -21,7 +22,7 @@ public class Main {
         Trainee trainee1 = new Trainee();
         trainee1.setFirstName("John");
         trainee1.setLastName("Doe");
-        trainee1.setDateOfBirth(new Date());
+        trainee1.setDateOfBirth(LocalDate.of(2005, Month.JANUARY, 1));
         trainee1.setAddress("123 Main St");
 
         facade.createTrainee(trainee1);
@@ -30,7 +31,7 @@ public class Main {
         Trainee trainee2 = new Trainee();
         trainee2.setFirstName("John");
         trainee2.setLastName("Doe");
-        trainee2.setDateOfBirth(new Date());
+        trainee2.setDateOfBirth(LocalDate.of(2005, Month.FEBRUARY, 2));
         trainee2.setAddress("456 Elm St");
 
         facade.createTrainee(trainee2);
