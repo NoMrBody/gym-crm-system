@@ -1,29 +1,34 @@
 package dao;
 
 import model.Trainee;
-import storage.InMemoryStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Repository
 public class TraineeDAO {
     private static final Logger log = LoggerFactory.getLogger(TraineeDAO.class);
-    private final Map<Long, Object> traineeData;
-    private Long idCounter = 1L; // Simple auto-increment for in-memory map
+    private Map<Long, Trainee> traineeData;
+    private final AtomicLong idCounter = new AtomicLong(0);
+
 
     @Autowired
-    public TraineeDAO(InMemoryStorage storage) {
-        this.traineeData = storage.getStorage().get("TRAINEE");
+    public void setTraineeData(@Qualifier("traineeStorage") Map<Long, Trainee> traineeData) {
+        this.traineeData = traineeData;
+        this.idCounter.set(
+                traineeData.keySet().stream().max(Long::compareTo).orElse(0L)
+        );
     }
 
     public Trainee create(Trainee trainee) {
-        trainee.setUserId(idCounter++);
+        trainee.setUserId(idCounter.incrementAndGet());
         traineeData.put(trainee.getUserId(), trainee);
         log.info("Saved new Trainee to storage with ID: {}", trainee.getUserId());
         return trainee;
@@ -45,14 +50,10 @@ public class TraineeDAO {
     }
 
     public Trainee getById(Long id) {
-        return (Trainee) traineeData.get(id);
+        return traineeData.get(id);
     }
 
     public List<Trainee> getAll() {
-        List<Trainee> allTrainees = new ArrayList<>();
-        for (Object obj : traineeData.values()) {
-            allTrainees.add((Trainee) obj);
-        }
-        return allTrainees;
+        return new ArrayList<>(traineeData.values());
     }
 }

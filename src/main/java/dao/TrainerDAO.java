@@ -1,29 +1,33 @@
 package dao;
 
 import model.Trainer;
-import storage.InMemoryStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Repository
 public class TrainerDAO {
     private static final Logger log = LoggerFactory.getLogger(TrainerDAO.class);
-    private final Map<Long, Object> trainerData;
-    private Long idCounter = 1L;
+    private Map<Long, Trainer> trainerData;
+    private final AtomicLong idCounter = new AtomicLong(0L);
 
     @Autowired
-    public TrainerDAO(InMemoryStorage storage) {
-        this.trainerData = storage.getStorage().get("TRAINER");
+    public void setTrainerData(@Qualifier("trainerStorage") Map<Long, Trainer> trainerData){
+        this.trainerData = trainerData;
+        this.idCounter.set(
+                trainerData.keySet().stream().max(Long::compareTo).orElse(0L)
+        );
     }
 
     public Trainer create(Trainer trainer) {
-        trainer.setUserId(idCounter++);
+        trainer.setUserId(idCounter.incrementAndGet());
         trainerData.put(trainer.getUserId(), trainer);
         log.info("Saved new Trainer to storage with ID: {}", trainer.getUserId());
         return trainer;
@@ -40,14 +44,10 @@ public class TrainerDAO {
     }
 
     public Trainer getById(Long id) {
-        return (Trainer) trainerData.get(id);
+        return trainerData.get(id);
     }
 
     public List<Trainer> getAll() {
-        List<Trainer> allTrainers = new ArrayList<>();
-        for (Object obj : trainerData.values()) {
-            allTrainers.add((Trainer) obj);
-        }
-        return allTrainers;
+        return new ArrayList<>(trainerData.values());
     }
 }
