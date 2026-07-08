@@ -1,6 +1,6 @@
 package model;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 public class Training {
     private Long id; // for mapping purposes in storage
@@ -8,8 +8,8 @@ public class Training {
     private Long trainerId;
     private String trainingName;
     private TrainingType trainingType;
-    private Date trainingDate;
-    private Integer trainingDuration;
+    private LocalDateTime trainingDate;
+    private Integer trainingDuration; // in minutes
 
     public Long getId() {
         return id;
@@ -51,15 +51,15 @@ public class Training {
         this.trainingType = trainingType;
     }
 
-    public Date getTrainingDate() {
+    public LocalDateTime getTrainingDate() {
         return trainingDate;
     }
 
-    public void setTrainingDate(Date trainingDate) {
+    public void setTrainingDate(LocalDateTime trainingDate) {
         this.trainingDate = trainingDate;
     }
 
-    public Integer getTrainingDuration() {
+    public Integer getTrainingDuration() { // in minutes
         return trainingDuration;
     }
 

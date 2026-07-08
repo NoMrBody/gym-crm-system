@@ -1,10 +1,10 @@
 package model;
 
-import java.util.Date;
+import java.time.LocalDate;
 
 public class Trainee extends User {
     private Long userId;
-    private Date dateOfBirth;
+    private LocalDate dateOfBirth;
     private String address;
 
     public Long getUserId() {
@@ -15,11 +15,11 @@ public class Trainee extends User {
         this.userId = userId;
     }
 
-    public Date getDateOfBirth() {
+    public LocalDate getDateOfBirth() {
         return dateOfBirth;
     }
 
-    public void setDateOfBirth(Date dateOfBirth) {
+    public void setDateOfBirth(LocalDate dateOfBirth) {
         this.dateOfBirth = dateOfBirth;
     }
 
