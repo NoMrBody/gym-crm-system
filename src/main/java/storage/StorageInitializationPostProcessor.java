@@ -4,46 +4,34 @@ import model.TrainingType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Properties;
+import java.util.Map;
 
 @Component
 public class StorageInitializationPostProcessor implements BeanPostProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(StorageInitializationPostProcessor.class);
 
-    private final String filePath;
-
-    public StorageInitializationPostProcessor() throws IOException {
-        Properties props = new Properties();
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("application.properties")) {
-            props.load(is);
-        }
-        this.filePath = props.getProperty("data.filepath");
-    }
+    @Value("${data.filepath}")
+    private String filePath;
 
     @Override
-    public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
-        return bean;
-    }
-
-    @Override
+    @SuppressWarnings("unchecked")
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-        if (bean instanceof InMemoryStorage) {
-            log.info("Intercepted InMemoryStorage bean. Initializing data from file: {}", filePath);
-            InMemoryStorage storage = (InMemoryStorage) bean;
-            loadDataFromFile(storage);
+        if ("trainingTypeStorage".equals(beanName)) {
+            log.info("Intercepted trainingTypeStorage bean. Initializing data from file: {}", filePath);
+            loadDataFromFile((Map<Long, TrainingType>) bean);
         }
         return bean;
     }
 
-    private void loadDataFromFile(InMemoryStorage storage) {
+    private void loadDataFromFile(Map<Long, TrainingType> storage) {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream(filePath)) {
             if (is == null) {
                 log.warn("Initialization file not found at path: {}", filePath);
@@ -62,7 +50,7 @@ public class StorageInitializationPostProcessor implements BeanPostProcessor {
                         type.setId(id);
                         type.setTrainingTypeName(name);
 
-                        storage.getStorage().get("TRAINING_TYPE").put(id, type);
+                        storage.put(id, type);
                         log.info("Loaded TrainingType from file: ID={}, Name={}", id, name);
                     }
                 }
