@@ -8,9 +8,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -20,6 +17,9 @@ class TrainerServiceTest {
 
     @Mock
     private TrainerDAO trainerDAO;
+
+    @Mock
+    private ProfileService profileService;
 
     @InjectMocks
     private TrainerService trainerService;
@@ -31,7 +31,8 @@ class TrainerServiceTest {
         trainer.setLastName("Cooper");
         trainer.setSpecialization("Strength");
 
-        when(trainerDAO.getAll()).thenReturn(new ArrayList<>());
+        when(profileService.generateUsername("Alice", "Cooper")).thenReturn("Alice.Cooper");
+        when(profileService.generatePassword()).thenReturn("ABCDE12345");
         when(trainerDAO.create(any(Trainer.class))).thenReturn(trainer);
 
         Trainer created = trainerService.create(trainer);
@@ -46,17 +47,13 @@ class TrainerServiceTest {
     }
 
     @Test
-    void testCreateTrainer_DuplicateUsername_AppendsSerial() {
-        Trainer existingTrainer = new Trainer();
-        existingTrainer.setUsername("Alice.Cooper");
-        List<Trainer> existingList = new ArrayList<>();
-        existingList.add(existingTrainer);
-
+    void testCreateTrainer_DelegatesUsernameToProfileService() {
         Trainer newTrainer = new Trainer();
         newTrainer.setFirstName("Alice");
         newTrainer.setLastName("Cooper");
 
-        when(trainerDAO.getAll()).thenReturn(existingList);
+        when(profileService.generateUsername("Alice", "Cooper")).thenReturn("Alice.Cooper1");
+        when(profileService.generatePassword()).thenReturn("ABCDE12345");
         when(trainerDAO.create(any(Trainer.class))).thenReturn(newTrainer);
 
         Trainer created = trainerService.create(newTrainer);

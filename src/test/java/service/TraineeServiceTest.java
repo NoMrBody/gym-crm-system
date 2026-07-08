@@ -2,15 +2,11 @@ package service;
 
 import dao.TraineeDAO;
 import model.Trainee;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,6 +18,9 @@ class TraineeServiceTest {
     @Mock
     private TraineeDAO traineeDAO;
 
+    @Mock
+    private ProfileService profileService;
+
     @InjectMocks
     private TraineeService traineeService;
 
@@ -30,42 +29,28 @@ class TraineeServiceTest {
         Trainee trainee = new Trainee();
         trainee.setFirstName("Jane");
         trainee.setLastName("Smith");
-
-        // Tell our mocked DAO to return an empty list when checking for existing usernames
-        when(traineeDAO.getAll()).thenReturn(new ArrayList<>());
+        when(profileService.generateUsername("Jane", "Smith")).thenReturn("Jane.Smith");
+        when(profileService.generatePassword()).thenReturn("ABCDE12345"); // 10 chars
         when(traineeDAO.create(any(Trainee.class))).thenReturn(trainee);
-
         Trainee created = traineeService.create(trainee);
-
-        // Assertions to verify our specific assignment rules
-        assertNotNull(created.getUsername());
         assertEquals("Jane.Smith", created.getUsername());
-        assertNotNull(created.getPassword());
         assertEquals(10, created.getPassword().length());
         assertTrue(created.isActive());
-
         verify(traineeDAO, times(1)).create(trainee);
     }
 
     @Test
-    void testCreateTrainee_DuplicateUsername_AppendsSerial() {
-        // Setup an existing user
-        Trainee existingTrainee = new Trainee();
-        existingTrainee.setUsername("Jane.Smith");
-        List<Trainee> existingList = new ArrayList<>();
-        existingList.add(existingTrainee);
-
-        // The new user with the same first and last name
+    void testCreateTrainee_DelegatesUsernameToProfileService() {
         Trainee newTrainee = new Trainee();
         newTrainee.setFirstName("Jane");
         newTrainee.setLastName("Smith");
 
-        when(traineeDAO.getAll()).thenReturn(existingList);
+        when(profileService.generateUsername("Jane", "Smith")).thenReturn("Jane.Smith1");
+        when(profileService.generatePassword()).thenReturn("ABCDE12345");
         when(traineeDAO.create(any(Trainee.class))).thenReturn(newTrainee);
 
         Trainee created = traineeService.create(newTrainee);
 
-        // Verify the logic successfully appended the "1"
         assertEquals("Jane.Smith1", created.getUsername());
     }
 }
