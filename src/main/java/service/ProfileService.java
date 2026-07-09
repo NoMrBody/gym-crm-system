@@ -1,7 +1,6 @@
 package service;
 
-import dao.TraineeDAO;
-import dao.TrainerDAO;
+import dao.UserDAO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,17 +12,11 @@ import java.security.SecureRandom;
 public class ProfileService {
     private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
 
-    private TraineeDAO traineeDAO;
-    private TrainerDAO trainerDAO;
+    private UserDAO userDAO;
 
     @Autowired
-    public void setTraineeDAO(TraineeDAO traineeDAO) {
-        this.traineeDAO = traineeDAO;
-    }
-
-    @Autowired
-    public void setTrainerDAO(TrainerDAO trainerDAO) {
-        this.trainerDAO = trainerDAO;
+    public void setUserDAO(UserDAO userDAO) {
+        this.userDAO = userDAO;
     }
 
     protected String generateUsername(String firstName, String lastName) {
@@ -44,8 +37,7 @@ public class ProfileService {
     }
 
     protected boolean usernameExists(String username) {
-        boolean exists = traineeDAO.getAll().stream().anyMatch(t -> username.equals(t.getUsername()))
-                || trainerDAO.getAll().stream().anyMatch(t -> username.equals(t.getUsername()));
+        boolean exists = userDAO.existsByUsername(username);
         log.debug("Checking if username '{}' exists: {}", username, exists);
         return exists;
     }

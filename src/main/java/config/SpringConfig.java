@@ -1,22 +1,51 @@
 package config;
 
-import model.Trainee;
-import model.Trainer;
-import model.Training;
-import model.TrainingType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import jakarta.persistence.EntityManagerFactory;
+import javax.sql.DataSource;
+import java.util.Properties;
 
 @Configuration
-@ComponentScan(basePackages = {"dao", "service", "facade", "storage", "config"})
+@ComponentScan(basePackages = {"dao", "service", "facade", "config"})
 @PropertySource("classpath:application.properties")
+@EnableTransactionManagement
 public class SpringConfig {
+
+    @Value("${db.driver}")
+    private String dbDriver;
+
+    @Value("${db.url}")
+    private String dbUrl;
+
+    @Value("${db.username}")
+    private String dbUsername;
+
+    @Value("${db.password}")
+    private String dbPassword;
+
+    @Value("${hibernate.dialect}")
+    private String hibernateDialect;
+
+    @Value("${hibernate.hbm2ddl.auto}")
+    private String hibernateHbm2ddlAuto;
+
+    @Value("${hibernate.show_sql}")
+    private String hibernateShowSql;
+
+    @Value("${hibernate.format_sql}")
+    private String hibernateFormatSql;
 
     @Bean
     public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
@@ -24,22 +53,36 @@ public class SpringConfig {
     }
 
     @Bean
-    public Map<Long, Trainee> traineeStorage() {
-        return new ConcurrentHashMap<>();
+    public DataSource dataSource() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName(dbDriver);
+        dataSource.setUrl(dbUrl);
+        dataSource.setUsername(dbUsername);
+        dataSource.setPassword(dbPassword);
+        return dataSource;
     }
 
     @Bean
-    public Map<Long, Trainer> trainerStorage() {
-        return new ConcurrentHashMap<>();
+    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
+        LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
+        factory.setDataSource(dataSource);
+        factory.setPackagesToScan("model");
+
+        HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+        factory.setJpaVendorAdapter(vendorAdapter);
+
+        Properties jpaProperties = new Properties();
+        jpaProperties.setProperty("hibernate.dialect", hibernateDialect);
+        jpaProperties.setProperty("hibernate.hbm2ddl.auto", hibernateHbm2ddlAuto);
+        jpaProperties.setProperty("hibernate.show_sql", hibernateShowSql);
+        jpaProperties.setProperty("hibernate.format_sql", hibernateFormatSql);
+        factory.setJpaProperties(jpaProperties);
+
+        return factory;
     }
 
     @Bean
-    public Map<Long, Training> trainingStorage() {
-        return new ConcurrentHashMap<>();
-    }
-
-    @Bean
-    public Map<Long, TrainingType> trainingTypeStorage() {
-        return new ConcurrentHashMap<>();
+    public PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
+        return new JpaTransactionManager(entityManagerFactory);
     }
 }

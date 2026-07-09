@@ -1,16 +1,29 @@
 package service;
 
+import dao.TraineeDAO;
+import dao.TrainerDAO;
 import dao.TrainingDAO;
+import exception.AuthenticationException;
+import exception.ValidationException;
+import jakarta.persistence.EntityNotFoundException;
+import model.Trainee;
+import model.Trainer;
 import model.Training;
+import model.TrainingType;
+import model.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -18,35 +31,92 @@ class TrainingServiceTest {
 
     @Mock
     private TrainingDAO trainingDAO;
+    @Mock
+    private TraineeDAO traineeDAO;
+    @Mock
+    private TrainerDAO trainerDAO;
+    @Mock
+    private AuthenticationService authenticationService;
 
     @InjectMocks
     private TrainingService trainingService;
 
-    @Test
-    void testCreateTraining() {
-        Training training = new Training();
-        training.setTrainingName("Morning Yoga");
+    private Trainee trainee;
+    private Trainer trainer;
+    private TrainingType specialization;
 
-        when(trainingDAO.create(any(Training.class))).thenReturn(training);
+    @BeforeEach
+    void setUp() {
+        User traineeUser = new User();
+        traineeUser.setUsername("Jane.Smith");
+        trainee = new Trainee();
+        trainee.setUser(traineeUser);
 
-        Training created = trainingService.create(training);
-
-        assertNotNull(created);
-        assertEquals("Morning Yoga", created.getTrainingName());
-        verify(trainingDAO, times(1)).create(training);
+        specialization = new TrainingType();
+        specialization.setTrainingTypeName("Yoga");
+        User trainerUser = new User();
+        trainerUser.setUsername("Alice.Cooper");
+        trainer = new Trainer();
+        trainer.setUser(trainerUser);
+        trainer.setSpecialization(specialization);
     }
 
     @Test
-    void testGetById() {
-        Training training = new Training();
-        training.setId(1L);
+    void addTraining_persistsAndLinksBothSides() {
+        LocalDateTime when = LocalDateTime.of(2024, 6, 1, 10, 0);
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
+        when(trainingDAO.save(any(Training.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        when(trainingDAO.getById(1L)).thenReturn(training);
+        Training result = trainingService.addTraining("Alice.Cooper", "pw",
+                "Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
 
-        Training result = trainingService.getById(1L);
+        assertEquals("Morning Yoga", result.getTrainingName());
+        assertSame(trainee, result.getTrainee());
+        assertSame(trainer, result.getTrainer());
+        assertSame(specialization, result.getTrainingType());
+        assertEquals(60, result.getTrainingDuration());
+        assertTrue(trainee.getTrainers().contains(trainer));
+        assertTrue(trainer.getTrainees().contains(trainee));
+        verify(authenticationService).authenticate("Alice.Cooper", "pw");
+    }
 
-        assertNotNull(result);
-        assertEquals(1L, result.getId());
-        verify(trainingDAO, times(1)).getById(1L);
+    @Test
+    void addTraining_traineeNotFound_throwsEntityNotFound() {
+        when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining("Alice.Cooper", "pw",
+                "Ghost.User", "Alice.Cooper", "Morning Yoga", LocalDateTime.now(), 60));
+        verify(trainingDAO, never()).save(any());
+    }
+
+    @Test
+    void addTraining_trainerNotFound_throwsEntityNotFound() {
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Ghost.Trainer")).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining("Ghost.Trainer", "pw",
+                "Jane.Smith", "Ghost.Trainer", "Morning Yoga", LocalDateTime.now(), 60));
+        verify(trainingDAO, never()).save(any());
+    }
+
+    @Test
+    void addTraining_blankTrainingName_throwsValidation() {
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
+
+        assertThrows(ValidationException.class, () -> trainingService.addTraining("Alice.Cooper", "pw",
+                "Jane.Smith", "Alice.Cooper", "  ", LocalDateTime.now(), 60));
+        verify(trainingDAO, never()).save(any());
+    }
+
+    @Test
+    void addTraining_authFailure_doesNotResolveEntities() {
+        doThrow(new AuthenticationException("bad")).when(authenticationService).authenticate("Alice.Cooper", "wrong");
+
+        assertThrows(AuthenticationException.class, () -> trainingService.addTraining("Alice.Cooper", "wrong",
+                "Jane.Smith", "Alice.Cooper", "Morning Yoga", LocalDateTime.now(), 60));
+        verify(traineeDAO, never()).findByUsername(anyString());
+        verify(trainingDAO, never()).save(any());
     }
 }

@@ -1,17 +1,11 @@
 package service;
 
-import dao.TraineeDAO;
-import dao.TrainerDAO;
-import model.Trainee;
-import model.Trainer;
+import dao.UserDAO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -20,42 +14,33 @@ import static org.mockito.Mockito.*;
 class ProfileServiceTest {
 
     @Mock
-    private TraineeDAO traineeDAO;
-
-    @Mock
-    private TrainerDAO trainerDAO;
+    private UserDAO userDAO;
 
     @InjectMocks
     private ProfileService profileService;
 
     @Test
     void generatesPlainUsername_whenNoConflict() {
-        when(traineeDAO.getAll()).thenReturn(new ArrayList<>());
-        when(trainerDAO.getAll()).thenReturn(new ArrayList<>());
+        when(userDAO.existsByUsername("Jane.Smith")).thenReturn(false);
 
         assertEquals("Jane.Smith", profileService.generateUsername("Jane", "Smith"));
     }
 
     @Test
-    void appendsSerial_whenTraineeHasSameName() {
-        Trainee existing = new Trainee();
-        existing.setUsername("Jane.Smith");
-
-        when(traineeDAO.getAll()).thenReturn(List.of(existing));
-        when(trainerDAO.getAll()).thenReturn(new ArrayList<>());
+    void appendsSerial_whenBaseUsernameTaken() {
+        when(userDAO.existsByUsername("Jane.Smith")).thenReturn(true);
+        when(userDAO.existsByUsername("Jane.Smith1")).thenReturn(false);
 
         assertEquals("Jane.Smith1", profileService.generateUsername("Jane", "Smith"));
     }
 
     @Test
-    void appendsSerial_whenTrainerHasSameName() {
-        Trainer existing = new Trainer();
-        existing.setUsername("John.Smith");
+    void incrementsSerial_untilFreeUsernameFound() {
+        when(userDAO.existsByUsername("Jane.Smith")).thenReturn(true);
+        when(userDAO.existsByUsername("Jane.Smith1")).thenReturn(true);
+        when(userDAO.existsByUsername("Jane.Smith2")).thenReturn(false);
 
-        when(traineeDAO.getAll()).thenReturn(new ArrayList<>());
-        when(trainerDAO.getAll()).thenReturn(List.of(existing));
-
-        assertEquals("John.Smith1", profileService.generateUsername("John", "Smith"));
+        assertEquals("Jane.Smith2", profileService.generateUsername("Jane", "Smith"));
     }
 
     @Test

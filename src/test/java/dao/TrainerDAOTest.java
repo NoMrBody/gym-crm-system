@@ -1,87 +1,120 @@
 package dao;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
+import jakarta.persistence.TypedQuery;
 import model.Trainer;
+import model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class TrainerDAOTest {
 
+    @Mock
+    private EntityManager entityManager;
+
+    @InjectMocks
     private TrainerDAO trainerDAO;
+
+    private Trainer trainer;
 
     @BeforeEach
     void setUp() {
-        trainerDAO = new TrainerDAO();
-        trainerDAO.setTrainerData(new HashMap<>());
+        User user = new User();
+        user.setUsername("Alice.Cooper");
+        trainer = new Trainer();
+        trainer.setUser(user);
     }
 
     @Test
-    void create_assignsIdAndStores() {
-        Trainer trainer = new Trainer();
-        trainer.setFirstName("Alice");
+    void save_newTrainer_persists() {
+        Trainer saved = trainerDAO.save(trainer);
 
-        Trainer created = trainerDAO.create(trainer);
-
-        assertEquals(1L, created.getUserId());
-        assertSame(trainer, trainerDAO.getById(1L));
+        verify(entityManager).persist(trainer);
+        verify(entityManager, never()).merge(any());
+        assertSame(trainer, saved);
     }
 
     @Test
-    void getById_returnsStoredTrainer() {
-        trainerDAO.create(new Trainer());
+    void save_existingTrainer_merges() {
+        trainer.setId(1L);
+        Trainer merged = new Trainer();
+        when(entityManager.merge(trainer)).thenReturn(merged);
 
-        assertNotNull(trainerDAO.getById(1L));
-        assertNull(trainerDAO.getById(99L));
+        Trainer saved = trainerDAO.save(trainer);
+
+        verify(entityManager).merge(trainer);
+        verify(entityManager, never()).persist(any());
+        assertSame(merged, saved);
     }
 
     @Test
-    void update_existingTrainer_replacesAndReturns() {
-        Trainer trainer = new Trainer();
-        trainerDAO.create(trainer);
+    void findById_delegatesToEntityManager() {
+        when(entityManager.find(Trainer.class, 1L)).thenReturn(trainer);
 
-        trainer.setSpecialization("Yoga");
-        Trainer result = trainerDAO.update(trainer);
+        Optional<Trainer> result = trainerDAO.findById(1L);
 
-        assertNotNull(result);
-        assertEquals("Yoga", trainerDAO.getById(1L).getSpecialization());
+        assertTrue(result.isPresent());
+        assertSame(trainer, result.get());
     }
 
     @Test
-    void update_nonExistentTrainer_returnsNull() {
-        Trainer trainer = new Trainer();
-        trainer.setUserId(42L);
+    @SuppressWarnings("unchecked")
+    void findByUsername_found_returnsTrainer() {
+        TypedQuery<Trainer> query = mock(TypedQuery.class);
+        when(entityManager.createQuery(anyString(), eq(Trainer.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn(trainer);
 
-        assertNull(trainerDAO.update(trainer));
+        Optional<Trainer> result = trainerDAO.findByUsername("Alice.Cooper");
+
+        assertTrue(result.isPresent());
+        verify(query).setParameter("username", "Alice.Cooper");
     }
 
     @Test
-    void getAll_returnsAllTrainers() {
-        trainerDAO.create(new Trainer());
-        trainerDAO.create(new Trainer());
+    @SuppressWarnings("unchecked")
+    void findByUsername_notFound_returnsEmpty() {
+        TypedQuery<Trainer> query = mock(TypedQuery.class);
+        when(entityManager.createQuery(anyString(), eq(Trainer.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getSingleResult()).thenThrow(new NoResultException());
 
-        List<Trainer> all = trainerDAO.getAll();
-
-        assertEquals(2, all.size());
+        assertTrue(trainerDAO.findByUsername("Ghost.User").isEmpty());
     }
 
     @Test
-    void create_afterPreloadedData_continuesFromMaxKeyWithoutOverwriting() {
-        Map<Long, Trainer> preloaded = new HashMap<>();
-        Trainer seeded = new Trainer();
-        seeded.setUserId(5L);
-        preloaded.put(5L, seeded);
+    @SuppressWarnings("unchecked")
+    void existsByUsername_returnsTrueWhenCountPositive() {
+        TypedQuery<Long> query = mock(TypedQuery.class);
+        when(entityManager.createQuery(anyString(), eq(Long.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn(2L);
 
-        TrainerDAO dao = new TrainerDAO();
-        dao.setTrainerData(preloaded);
+        assertTrue(trainerDAO.existsByUsername("Alice.Cooper"));
+    }
 
-        Trainer created = dao.create(new Trainer());
+    @Test
+    @SuppressWarnings("unchecked")
+    void findAll_returnsResultList() {
+        TypedQuery<Trainer> query = mock(TypedQuery.class);
+        when(entityManager.createQuery(anyString(), eq(Trainer.class))).thenReturn(query);
+        when(query.getResultList()).thenReturn(List.of(trainer));
 
-        assertEquals(6L, created.getUserId());
-        assertSame(seeded, dao.getById(5L));
+        assertEquals(1, trainerDAO.findAll().size());
     }
 }
