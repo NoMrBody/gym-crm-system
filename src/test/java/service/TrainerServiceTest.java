@@ -3,7 +3,6 @@ package service;
 import dao.TrainerDAO;
 import dao.TrainingDAO;
 import dao.TrainingTypeDAO;
-import exception.AuthenticationException;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainer;
@@ -22,7 +21,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,8 +34,6 @@ class TrainerServiceTest {
     private TrainingTypeDAO trainingTypeDAO;
     @Mock
     private ProfileService profileService;
-    @Mock
-    private AuthenticationService authenticationService;
 
     @InjectMocks
     private TrainerService trainerService;
@@ -98,49 +94,36 @@ class TrainerServiceTest {
     }
 
     @Test
-    void getByUsername_authenticatedReturnsTrainer() {
+    void getByUsername_returnsTrainer() {
         Trainer trainer = trainerWith("Alice", "Cooper", true, type("Yoga"));
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
 
-        Trainer result = trainerService.getByUsername("Alice.Cooper", "pw");
+        Trainer result = trainerService.getByUsername("Alice.Cooper");
 
         assertSame(trainer, result);
-        verify(authenticationService).authenticate("Alice.Cooper", "pw");
     }
 
     @Test
-    void getByUsername_authFailure_doesNotQueryDao() {
-        doThrow(new AuthenticationException("bad")).when(authenticationService).authenticate("Alice.Cooper", "wrong");
+    void getByUsername_notFound_throwsEntityNotFound() {
+        when(trainerDAO.findByUsername("Ghost.Trainer")).thenReturn(Optional.empty());
 
-        assertThrows(AuthenticationException.class, () -> trainerService.getByUsername("Alice.Cooper", "wrong"));
-        verify(trainerDAO, never()).findByUsername(anyString());
+        assertThrows(EntityNotFoundException.class, () -> trainerService.getByUsername("Ghost.Trainer"));
     }
 
     @Test
-    void update_updatesNameAndSpecialization() {
-        Trainer existing = trainerWith("Alice", "Cooper", true, type("Yoga"));
-        Trainer updatedData = trainerWith("Alicia", "Cooper", true, type("Pilates"));
-        TrainingType resolved = type("Pilates");
+    void update_updatesNameAndActiveButNotSpecialization() {
+        TrainingType original = type("Yoga");
+        Trainer existing = trainerWith("Alice", "Cooper", true, original);
+        Trainer updatedData = trainerWith("Alicia", "Cooper", false, null);
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(existing));
-        when(trainingTypeDAO.findByName("Pilates")).thenReturn(Optional.of(resolved));
         when(trainerDAO.save(existing)).thenReturn(existing);
 
-        Trainer result = trainerService.update("Alice.Cooper", "pw", updatedData);
+        Trainer result = trainerService.update("Alice.Cooper", updatedData);
 
         assertEquals("Alicia", result.getUser().getFirstName());
-        assertSame(resolved, result.getSpecialization());
+        assertFalse(result.getUser().isActive());
+        assertSame(original, result.getSpecialization());
         verify(trainerDAO).save(existing);
-    }
-
-    @Test
-    void changePassword_setsNewPassword() {
-        Trainer trainer = trainerWith("Alice", "Cooper", true, type("Yoga"));
-        when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
-
-        trainerService.changePassword("Alice.Cooper", "old", "newSecret");
-
-        assertEquals("newSecret", trainer.getUser().getPassword());
-        verify(trainerDAO).save(trainer);
     }
 
     @Test
@@ -148,7 +131,7 @@ class TrainerServiceTest {
         Trainer trainer = trainerWith("Alice", "Cooper", true, type("Yoga"));
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
 
-        assertThrows(ValidationException.class, () -> trainerService.activate("Alice.Cooper", "pw"));
+        assertThrows(ValidationException.class, () -> trainerService.activate("Alice.Cooper"));
         verify(trainerDAO, never()).save(any());
     }
 
@@ -157,7 +140,7 @@ class TrainerServiceTest {
         Trainer trainer = trainerWith("Alice", "Cooper", true, type("Yoga"));
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
 
-        trainerService.deactivate("Alice.Cooper", "pw");
+        trainerService.deactivate("Alice.Cooper");
 
         assertFalse(trainer.getUser().isActive());
         verify(trainerDAO).save(trainer);
@@ -168,21 +151,22 @@ class TrainerServiceTest {
         Trainer trainer = trainerWith("Alice", "Cooper", false, type("Yoga"));
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
 
-        assertThrows(ValidationException.class, () -> trainerService.deactivate("Alice.Cooper", "pw"));
+        assertThrows(ValidationException.class, () -> trainerService.deactivate("Alice.Cooper"));
         verify(trainerDAO, never()).save(any());
     }
 
     @Test
     void getTrainings_delegatesToTrainingDao() {
+        Trainer trainer = trainerWith("Alice", "Cooper", true, type("Yoga"));
         LocalDate from = LocalDate.of(2024, 1, 1);
         LocalDate to = LocalDate.of(2024, 12, 31);
+        when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
         when(trainingDAO.findTrainerTrainings("Alice.Cooper", from, to, "Jane.Smith"))
                 .thenReturn(List.of(new Training()));
 
         List<Training> result =
-                trainerService.getTrainings("Alice.Cooper", "pw", from, to, "Jane.Smith");
+                trainerService.getTrainings("Alice.Cooper", from, to, "Jane.Smith");
 
         assertEquals(1, result.size());
-        verify(authenticationService).authenticate("Alice.Cooper", "pw");
     }
 }

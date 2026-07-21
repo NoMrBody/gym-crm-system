@@ -55,4 +55,24 @@ class AuthenticationServiceTest {
                 () -> authenticationService.authenticate("Jane.Smith", null));
         verifyNoInteractions(userDAO);
     }
+
+    @Test
+    void changeLogin_validOldPassword_updatesPassword() {
+        User user = new User();
+        user.setUsername("Jane.Smith");
+        user.setPassword("old");
+        when(userDAO.findByCredentials("Jane.Smith", "old")).thenReturn(Optional.of(user));
+
+        authenticationService.changeLogin("Jane.Smith", "old", "newSecret");
+
+        assertEquals("newSecret", user.getPassword());
+    }
+
+    @Test
+    void changeLogin_invalidOldPassword_throwsAndDoesNotChange() {
+        when(userDAO.findByCredentials("Jane.Smith", "wrong")).thenReturn(Optional.empty());
+
+        assertThrows(AuthenticationException.class,
+                () -> authenticationService.changeLogin("Jane.Smith", "wrong", "newSecret"));
+    }
 }

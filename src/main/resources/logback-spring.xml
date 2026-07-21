@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [txId=%X{transactionId:-N/A}] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="dao" level="DEBUG"/>
+    <logger name="service" level="DEBUG"/>
+    <logger name="controller" level="DEBUG"/>
+    <logger name="config" level="DEBUG"/>
+
+</configuration>

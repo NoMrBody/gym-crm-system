@@ -29,7 +29,6 @@ public class TraineeService {
     private TrainerDAO trainerDAO;
     private TrainingDAO trainingDAO;
     private ProfileService profileService;
-    private AuthenticationService authenticationService;
 
     @Autowired
     public void setTraineeDAO(TraineeDAO traineeDAO) {
@@ -51,11 +50,6 @@ public class TraineeService {
         this.profileService = profileService;
     }
 
-    @Autowired
-    public void setAuthenticationService(AuthenticationService authenticationService) {
-        this.authenticationService = authenticationService;
-    }
-
     // Create Trainee profile. Generates credentials and activates (public registration).
     @Transactional
     public Trainee create(Trainee trainee) {
@@ -69,18 +63,16 @@ public class TraineeService {
         return saved;
     }
 
-    // #5 Get Trainee profile by username (authenticated)
+    // Get Trainee profile by username.
     @Transactional(readOnly = true)
-    public Trainee getByUsername(String username, String password) {
-        authenticationService.authenticate(username, password);
+    public Trainee getByUsername(String username) {
         log.debug("Fetching Trainee profile: {}", username);
         return requireTrainee(username);
     }
 
-    // #9 Update Trainee (name, birth date, address only. activation handled separately)
+    // Update Trainee (name, birth date, address, active flag; username is immutable).
     @Transactional
-    public Trainee update(String username, String password, Trainee updatedData) {
-        authenticationService.authenticate(username, password);
+    public Trainee update(String username, Trainee updatedData) {
         ValidationUtils.validateTrainee(updatedData);
 
         Trainee existing = requireTrainee(username);
@@ -88,6 +80,7 @@ public class TraineeService {
         User newUser = updatedData.getUser();
         existingUser.setFirstName(newUser.getFirstName());
         existingUser.setLastName(newUser.getLastName());
+        existingUser.setActive(newUser.isActive());
         existing.setDateOfBirth(updatedData.getDateOfBirth());
         existing.setAddress(updatedData.getAddress());
 
@@ -96,22 +89,9 @@ public class TraineeService {
         return saved;
     }
 
-    // #7 Change Trainee password (requires current password)
+    // Activate Trainee (non-idempotent: rejects a no-op change).
     @Transactional
-    public void changePassword(String username, String oldPassword, String newPassword) {
-        authenticationService.authenticate(username, oldPassword);
-        ValidationUtils.requireNonBlank(newPassword, "newPassword");
-
-        Trainee trainee = requireTrainee(username);
-        trainee.getUser().setPassword(newPassword);
-        traineeDAO.save(trainee);
-        log.info("Password changed for Trainee: {}", username);
-    }
-
-    // #11 Activate Trainee (non-idempotent: rejects a no-op change)
-    @Transactional
-    public void activate(String username, String password) {
-        authenticationService.authenticate(username, password);
+    public void activate(String username) {
         Trainee trainee = requireTrainee(username);
         if (trainee.getUser().isActive()) {
             throw new ValidationException("Trainee '" + username + "' is already active");
@@ -121,10 +101,9 @@ public class TraineeService {
         log.info("Activated Trainee: {}", username);
     }
 
-    // #11 Deactivate Trainee (non-idempotent: rejects a no-op change)
+    // Deactivate Trainee (non-idempotent: rejects a no-op change).
     @Transactional
-    public void deactivate(String username, String password) {
-        authenticationService.authenticate(username, password);
+    public void deactivate(String username) {
         Trainee trainee = requireTrainee(username);
         if (!trainee.getUser().isActive()) {
             throw new ValidationException("Trainee '" + username + "' is already inactive");
@@ -134,39 +113,37 @@ public class TraineeService {
         log.info("Deactivated Trainee: {}", username);
     }
 
-    // #13 Delete Trainee (hard delete; cascades trainings)
+    // Delete Trainee (hard delete; cascades trainings).
     @Transactional
-    public void deleteByUsername(String username, String password) {
-        authenticationService.authenticate(username, password);
+    public void deleteByUsername(String username) {
+        requireTrainee(username);
         traineeDAO.deleteByUsername(username);
         log.info("Deleted Trainee profile: {}", username);
     }
 
-    // #14 Get Trainee trainings list by optional criteria
+    // Get Trainee trainings list by optional criteria.
     @Transactional(readOnly = true)
     public List<Training> getTrainings(String username,
-                                       String password,
                                        LocalDate fromDate,
                                        LocalDate toDate,
                                        String trainerName,
                                        String trainingTypeName) {
-        authenticationService.authenticate(username, password);
+        requireTrainee(username);
         log.debug("Fetching trainings for Trainee: {}", username);
         return trainingDAO.findTraineeTrainings(username, fromDate, toDate, trainerName, trainingTypeName);
     }
 
-    // #17 Get active trainers not yet assigned to the Trainee
+    // Get active trainers not yet assigned to the Trainee.
     @Transactional(readOnly = true)
-    public List<Trainer> getUnassignedTrainers(String username, String password) {
-        authenticationService.authenticate(username, password);
+    public List<Trainer> getUnassignedTrainers(String username) {
+        requireTrainee(username);
         log.debug("Fetching unassigned trainers for Trainee: {}", username);
         return traineeDAO.findUnassignedTrainers(username);
     }
 
-    // #18 Update the Trainee's trainers list (replaces the whole set)
+    // Update the Trainee's trainers list (replaces the whole set).
     @Transactional
-    public Trainee updateTrainers(String username, String password, List<String> trainerUsernames) {
-        authenticationService.authenticate(username, password);
+    public Trainee updateTrainers(String username, List<String> trainerUsernames) {
         ValidationUtils.requireNonNull(trainerUsernames, "trainerUsernames");
 
         Trainee trainee = requireTrainee(username);

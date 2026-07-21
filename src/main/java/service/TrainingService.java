@@ -23,7 +23,6 @@ public class TrainingService {
     private TrainingDAO trainingDAO;
     private TraineeDAO traineeDAO;
     private TrainerDAO trainerDAO;
-    private AuthenticationService authenticationService;
 
     @Autowired
     public void setTrainingDAO(TrainingDAO trainingDAO) {
@@ -40,22 +39,13 @@ public class TrainingService {
         this.trainerDAO = trainerDAO;
     }
 
-    @Autowired
-    public void setAuthenticationService(AuthenticationService authenticationService) {
-        this.authenticationService = authenticationService;
-    }
-
-    // #16 Add Training (resolves trainee and trainer by username, derives training type from trainer's specialization, persists the training and links trainee/trainer)
+    // Add Training (resolves trainee and trainer by username, derives training type from trainer's specialization, persists the training and links trainee/trainer)
     @Transactional
-    public Training addTraining(String username,
-                                String password,
-                                String traineeUsername,
+    public Training addTraining(String traineeUsername,
                                 String trainerUsername,
                                 String trainingName,
                                 LocalDateTime trainingDate,
                                 Integer trainingDuration) {
-        authenticationService.authenticate(username, password);
-
         Trainee trainee = traineeDAO.findByUsername(traineeUsername)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Trainee not found with username: " + traineeUsername));

@@ -25,6 +25,8 @@ class GymFacadeTest {
     @Mock
     private TrainingService trainingService;
     @Mock
+    private TrainingTypeService trainingTypeService;
+    @Mock
     private AuthenticationService authenticationService;
 
     @InjectMocks
@@ -45,119 +47,112 @@ class GymFacadeTest {
     }
 
     @Test
-    void loginTrainee_delegatesToAuthentication() {
-        gymFacade.loginTrainee("Jane.Smith", "pw");
+    void login_delegatesToAuthentication() {
+        gymFacade.login("Jane.Smith", "pw");
         verify(authenticationService).authenticate("Jane.Smith", "pw");
     }
 
     @Test
-    void loginTrainer_delegatesToAuthentication() {
-        gymFacade.loginTrainer("Alice.Cooper", "pw");
-        verify(authenticationService).authenticate("Alice.Cooper", "pw");
+    void changeLogin_delegatesToAuthentication() {
+        gymFacade.changeLogin("Jane.Smith", "old", "new");
+        verify(authenticationService).changeLogin("Jane.Smith", "old", "new");
     }
 
     @Test
     void getTrainee_delegates() {
-        gymFacade.getTrainee("Jane.Smith", "pw");
-        verify(traineeService).getByUsername("Jane.Smith", "pw");
+        gymFacade.getTrainee("Jane.Smith");
+        verify(traineeService).getByUsername("Jane.Smith");
     }
 
     @Test
     void getTrainer_delegates() {
-        gymFacade.getTrainer("Alice.Cooper", "pw");
-        verify(trainerService).getByUsername("Alice.Cooper", "pw");
-    }
-
-    @Test
-    void changeTraineePassword_delegates() {
-        gymFacade.changeTraineePassword("Jane.Smith", "old", "new");
-        verify(traineeService).changePassword("Jane.Smith", "old", "new");
-    }
-
-    @Test
-    void changeTrainerPassword_delegates() {
-        gymFacade.changeTrainerPassword("Alice.Cooper", "old", "new");
-        verify(trainerService).changePassword("Alice.Cooper", "old", "new");
+        gymFacade.getTrainer("Alice.Cooper");
+        verify(trainerService).getByUsername("Alice.Cooper");
     }
 
     @Test
     void updateTrainee_delegates() {
         Trainee trainee = new Trainee();
-        gymFacade.updateTrainee("Jane.Smith", "pw", trainee);
-        verify(traineeService).update("Jane.Smith", "pw", trainee);
+        gymFacade.updateTrainee("Jane.Smith", trainee);
+        verify(traineeService).update("Jane.Smith", trainee);
     }
 
     @Test
     void updateTrainer_delegates() {
         Trainer trainer = new Trainer();
-        gymFacade.updateTrainer("Alice.Cooper", "pw", trainer);
-        verify(trainerService).update("Alice.Cooper", "pw", trainer);
+        gymFacade.updateTrainer("Alice.Cooper", trainer);
+        verify(trainerService).update("Alice.Cooper", trainer);
     }
 
     @Test
-    void activateTrainee_delegates() {
-        gymFacade.activateTrainee("Jane.Smith", "pw");
-        verify(traineeService).activate("Jane.Smith", "pw");
+    void setTraineeActive_true_activates() {
+        gymFacade.setTraineeActive("Jane.Smith", true);
+        verify(traineeService).activate("Jane.Smith");
     }
 
     @Test
-    void deactivateTrainee_delegates() {
-        gymFacade.deactivateTrainee("Jane.Smith", "pw");
-        verify(traineeService).deactivate("Jane.Smith", "pw");
+    void setTraineeActive_false_deactivates() {
+        gymFacade.setTraineeActive("Jane.Smith", false);
+        verify(traineeService).deactivate("Jane.Smith");
     }
 
     @Test
-    void activateTrainer_delegates() {
-        gymFacade.activateTrainer("Alice.Cooper", "pw");
-        verify(trainerService).activate("Alice.Cooper", "pw");
+    void setTrainerActive_true_activates() {
+        gymFacade.setTrainerActive("Alice.Cooper", true);
+        verify(trainerService).activate("Alice.Cooper");
     }
 
     @Test
-    void deactivateTrainer_delegates() {
-        gymFacade.deactivateTrainer("Alice.Cooper", "pw");
-        verify(trainerService).deactivate("Alice.Cooper", "pw");
+    void setTrainerActive_false_deactivates() {
+        gymFacade.setTrainerActive("Alice.Cooper", false);
+        verify(trainerService).deactivate("Alice.Cooper");
     }
 
     @Test
     void deleteTrainee_delegates() {
-        gymFacade.deleteTrainee("Jane.Smith", "pw");
-        verify(traineeService).deleteByUsername("Jane.Smith", "pw");
+        gymFacade.deleteTrainee("Jane.Smith");
+        verify(traineeService).deleteByUsername("Jane.Smith");
     }
 
     @Test
     void getTraineeTrainings_delegates() {
         LocalDate from = LocalDate.of(2024, 1, 1);
         LocalDate to = LocalDate.of(2024, 12, 31);
-        gymFacade.getTraineeTrainings("Jane.Smith", "pw", from, to, "Alice.Cooper", "Yoga");
-        verify(traineeService).getTrainings("Jane.Smith", "pw", from, to, "Alice.Cooper", "Yoga");
+        gymFacade.getTraineeTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga");
+        verify(traineeService).getTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga");
     }
 
     @Test
     void getTrainerTrainings_delegates() {
         LocalDate from = LocalDate.of(2024, 1, 1);
         LocalDate to = LocalDate.of(2024, 12, 31);
-        gymFacade.getTrainerTrainings("Alice.Cooper", "pw", from, to, "Jane.Smith");
-        verify(trainerService).getTrainings("Alice.Cooper", "pw", from, to, "Jane.Smith");
+        gymFacade.getTrainerTrainings("Alice.Cooper", from, to, "Jane.Smith");
+        verify(trainerService).getTrainings("Alice.Cooper", from, to, "Jane.Smith");
     }
 
     @Test
     void addTraining_delegates() {
         LocalDateTime when = LocalDateTime.of(2024, 6, 1, 10, 0);
-        gymFacade.addTraining("Alice.Cooper", "pw", "Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
-        verify(trainingService).addTraining("Alice.Cooper", "pw", "Jane.Smith", "Alice.Cooper",
-                "Morning Yoga", when, 60);
+        gymFacade.addTraining("Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
+        verify(trainingService).addTraining("Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
     }
 
     @Test
     void getUnassignedTrainers_delegates() {
-        gymFacade.getUnassignedTrainers("Jane.Smith", "pw");
-        verify(traineeService).getUnassignedTrainers("Jane.Smith", "pw");
+        gymFacade.getUnassignedTrainers("Jane.Smith");
+        verify(traineeService).getUnassignedTrainers("Jane.Smith");
     }
 
     @Test
     void updateTraineeTrainers_delegates() {
         List<String> trainers = List.of("Alice.Cooper");
-        gymFacade.updateTraineeTrainers("Jane.Smith", "pw", trainers);
-        verify(traineeService).updateTrainers("Jane.Smith", "pw", trainers);
+        gymFacade.updateTraineeTrainers("Jane.Smith", trainers);
+        verify(traineeService).updateTrainers("Jane.Smith", trainers);
+    }
+
+    @Test
+    void getTrainingTypes_delegates() {
+        gymFacade.getTrainingTypes();
+        verify(trainingTypeService).getAll();
     }
 }

@@ -3,7 +3,6 @@ package service;
 import dao.TraineeDAO;
 import dao.TrainerDAO;
 import dao.TrainingDAO;
-import exception.AuthenticationException;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainee;
@@ -23,7 +22,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,8 +33,6 @@ class TrainingServiceTest {
     private TraineeDAO traineeDAO;
     @Mock
     private TrainerDAO trainerDAO;
-    @Mock
-    private AuthenticationService authenticationService;
 
     @InjectMocks
     private TrainingService trainingService;
@@ -68,7 +64,7 @@ class TrainingServiceTest {
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
         when(trainingDAO.save(any(Training.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        Training result = trainingService.addTraining("Alice.Cooper", "pw",
+        Training result = trainingService.addTraining(
                 "Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
 
         assertEquals("Morning Yoga", result.getTrainingName());
@@ -78,14 +74,13 @@ class TrainingServiceTest {
         assertEquals(60, result.getTrainingDuration());
         assertTrue(trainee.getTrainers().contains(trainer));
         assertTrue(trainer.getTrainees().contains(trainee));
-        verify(authenticationService).authenticate("Alice.Cooper", "pw");
     }
 
     @Test
     void addTraining_traineeNotFound_throwsEntityNotFound() {
         when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining("Alice.Cooper", "pw",
+        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining(
                 "Ghost.User", "Alice.Cooper", "Morning Yoga", LocalDateTime.now(), 60));
         verify(trainingDAO, never()).save(any());
     }
@@ -95,7 +90,7 @@ class TrainingServiceTest {
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
         when(trainerDAO.findByUsername("Ghost.Trainer")).thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining("Ghost.Trainer", "pw",
+        assertThrows(EntityNotFoundException.class, () -> trainingService.addTraining(
                 "Jane.Smith", "Ghost.Trainer", "Morning Yoga", LocalDateTime.now(), 60));
         verify(trainingDAO, never()).save(any());
     }
@@ -105,18 +100,8 @@ class TrainingServiceTest {
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
 
-        assertThrows(ValidationException.class, () -> trainingService.addTraining("Alice.Cooper", "pw",
+        assertThrows(ValidationException.class, () -> trainingService.addTraining(
                 "Jane.Smith", "Alice.Cooper", "  ", LocalDateTime.now(), 60));
-        verify(trainingDAO, never()).save(any());
-    }
-
-    @Test
-    void addTraining_authFailure_doesNotResolveEntities() {
-        doThrow(new AuthenticationException("bad")).when(authenticationService).authenticate("Alice.Cooper", "wrong");
-
-        assertThrows(AuthenticationException.class, () -> trainingService.addTraining("Alice.Cooper", "wrong",
-                "Jane.Smith", "Alice.Cooper", "Morning Yoga", LocalDateTime.now(), 60));
-        verify(traineeDAO, never()).findByUsername(anyString());
         verify(trainingDAO, never()).save(any());
     }
 }

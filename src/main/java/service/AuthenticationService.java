@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import util.ValidationUtils;
 
 @Service
 public class AuthenticationService {
@@ -31,5 +32,14 @@ public class AuthenticationService {
                     log.warn("Authentication failed for username: {}", username);
                     return new AuthenticationException("Invalid username or password");
                 });
+    }
+
+    // Change the login password after verifying the current one.
+    @Transactional
+    public void changeLogin(String username, String oldPassword, String newPassword) {
+        User user = authenticate(username, oldPassword);
+        ValidationUtils.requireNonBlank(newPassword, "newPassword");
+        user.setPassword(newPassword);
+        log.info("Password changed for user: {}", username);
     }
 }

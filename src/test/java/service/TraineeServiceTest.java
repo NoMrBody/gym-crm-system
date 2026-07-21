@@ -3,7 +3,6 @@ package service;
 import dao.TraineeDAO;
 import dao.TrainerDAO;
 import dao.TrainingDAO;
-import exception.AuthenticationException;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainee;
@@ -22,7 +21,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,8 +34,6 @@ class TraineeServiceTest {
     private TrainingDAO trainingDAO;
     @Mock
     private ProfileService profileService;
-    @Mock
-    private AuthenticationService authenticationService;
 
     @InjectMocks
     private TraineeService traineeService;
@@ -78,57 +74,38 @@ class TraineeServiceTest {
     }
 
     @Test
-    void getByUsername_authenticatedReturnsTrainee() {
+    void getByUsername_returnsTrainee() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        Trainee result = traineeService.getByUsername("Jane.Smith", "pw");
+        Trainee result = traineeService.getByUsername("Jane.Smith");
 
         assertSame(trainee, result);
-        verify(authenticationService).authenticate("Jane.Smith", "pw");
     }
 
     @Test
-    void getByUsername_authFailure_doesNotQueryDao() {
-        doThrow(new AuthenticationException("bad")).when(authenticationService).authenticate("Jane.Smith", "wrong");
+    void getByUsername_notFound_throwsEntityNotFound() {
+        when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
 
-        assertThrows(AuthenticationException.class, () -> traineeService.getByUsername("Jane.Smith", "wrong"));
-        verify(traineeDAO, never()).findByUsername(anyString());
+        assertThrows(EntityNotFoundException.class, () -> traineeService.getByUsername("Ghost.User"));
     }
 
     @Test
-    void update_updatesMutableFields() {
+    void update_updatesMutableFieldsIncludingActive() {
         Trainee existing = traineeWith("Old", "Name", true);
-        Trainee updatedData = traineeWith("New", "Name", true);
+        Trainee updatedData = traineeWith("New", "Name", false);
         updatedData.setDateOfBirth(LocalDate.of(1990, 5, 5));
         updatedData.setAddress("42 New St");
         when(traineeDAO.findByUsername("Old.Name")).thenReturn(Optional.of(existing));
         when(traineeDAO.save(existing)).thenReturn(existing);
 
-        Trainee result = traineeService.update("Old.Name", "pw", updatedData);
+        Trainee result = traineeService.update("Old.Name", updatedData);
 
         assertEquals("New", result.getUser().getFirstName());
+        assertFalse(result.getUser().isActive());
         assertEquals(LocalDate.of(1990, 5, 5), result.getDateOfBirth());
         assertEquals("42 New St", result.getAddress());
         verify(traineeDAO).save(existing);
-    }
-
-    @Test
-    void changePassword_setsNewPassword() {
-        Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
-
-        traineeService.changePassword("Jane.Smith", "old", "newSecret");
-
-        assertEquals("newSecret", trainee.getUser().getPassword());
-        verify(traineeDAO).save(trainee);
-    }
-
-    @Test
-    void changePassword_blankNewPassword_throwsValidation() {
-        assertThrows(ValidationException.class,
-                () -> traineeService.changePassword("Jane.Smith", "old", "  "));
-        verify(traineeDAO, never()).save(any());
     }
 
     @Test
@@ -136,7 +113,7 @@ class TraineeServiceTest {
         Trainee trainee = traineeWith("Jane", "Smith", false);
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        traineeService.activate("Jane.Smith", "pw");
+        traineeService.activate("Jane.Smith");
 
         assertTrue(trainee.getUser().isActive());
         verify(traineeDAO).save(trainee);
@@ -147,7 +124,7 @@ class TraineeServiceTest {
         Trainee trainee = traineeWith("Jane", "Smith", true);
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        assertThrows(ValidationException.class, () -> traineeService.activate("Jane.Smith", "pw"));
+        assertThrows(ValidationException.class, () -> traineeService.activate("Jane.Smith"));
         verify(traineeDAO, never()).save(any());
     }
 
@@ -156,7 +133,7 @@ class TraineeServiceTest {
         Trainee trainee = traineeWith("Jane", "Smith", true);
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        traineeService.deactivate("Jane.Smith", "pw");
+        traineeService.deactivate("Jane.Smith");
 
         assertFalse(trainee.getUser().isActive());
         verify(traineeDAO).save(trainee);
@@ -167,37 +144,50 @@ class TraineeServiceTest {
         Trainee trainee = traineeWith("Jane", "Smith", false);
         when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        assertThrows(ValidationException.class, () -> traineeService.deactivate("Jane.Smith", "pw"));
+        assertThrows(ValidationException.class, () -> traineeService.deactivate("Jane.Smith"));
         verify(traineeDAO, never()).save(any());
     }
 
     @Test
-    void deleteByUsername_authenticatesThenDeletes() {
-        traineeService.deleteByUsername("Jane.Smith", "pw");
+    void deleteByUsername_deletesWhenPresent() {
+        Trainee trainee = traineeWith("Jane", "Smith", true);
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
 
-        verify(authenticationService).authenticate("Jane.Smith", "pw");
+        traineeService.deleteByUsername("Jane.Smith");
+
         verify(traineeDAO).deleteByUsername("Jane.Smith");
     }
 
     @Test
+    void deleteByUsername_notFound_throwsEntityNotFound() {
+        when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> traineeService.deleteByUsername("Ghost.User"));
+        verify(traineeDAO, never()).deleteByUsername("Ghost.User");
+    }
+
+    @Test
     void getTrainings_delegatesToTrainingDao() {
+        Trainee trainee = traineeWith("Jane", "Smith", true);
         LocalDate from = LocalDate.of(2024, 1, 1);
         LocalDate to = LocalDate.of(2024, 12, 31);
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
         when(trainingDAO.findTraineeTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga"))
                 .thenReturn(List.of(new Training()));
 
         List<Training> result =
-                traineeService.getTrainings("Jane.Smith", "pw", from, to, "Alice.Cooper", "Yoga");
+                traineeService.getTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga");
 
         assertEquals(1, result.size());
-        verify(authenticationService).authenticate("Jane.Smith", "pw");
     }
 
     @Test
     void getUnassignedTrainers_delegatesToTraineeDao() {
+        Trainee trainee = traineeWith("Jane", "Smith", true);
+        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
         when(traineeDAO.findUnassignedTrainers("Jane.Smith")).thenReturn(List.of(new Trainer()));
 
-        List<Trainer> result = traineeService.getUnassignedTrainers("Jane.Smith", "pw");
+        List<Trainer> result = traineeService.getUnassignedTrainers("Jane.Smith");
 
         assertEquals(1, result.size());
     }
@@ -213,7 +203,7 @@ class TraineeServiceTest {
         when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
         when(traineeDAO.save(trainee)).thenReturn(trainee);
 
-        Trainee result = traineeService.updateTrainers("Jane.Smith", "pw", List.of("Alice.Cooper"));
+        Trainee result = traineeService.updateTrainers("Jane.Smith", List.of("Alice.Cooper"));
 
         assertEquals(1, result.getTrainers().size());
         assertTrue(result.getTrainers().contains(trainer));
@@ -226,7 +216,7 @@ class TraineeServiceTest {
         when(trainerDAO.findByUsername("Ghost.Trainer")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class,
-                () -> traineeService.updateTrainers("Jane.Smith", "pw", List.of("Ghost.Trainer")));
+                () -> traineeService.updateTrainers("Jane.Smith", List.of("Ghost.Trainer")));
         verify(traineeDAO, never()).save(any());
     }
 }
