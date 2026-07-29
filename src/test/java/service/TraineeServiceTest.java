@@ -1,8 +1,5 @@
 package service;
 
-import dao.TraineeDAO;
-import dao.TrainerDAO;
-import dao.TrainingDAO;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainee;
@@ -14,6 +11,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import repository.TraineeRepository;
+import repository.TrainerRepository;
+import repository.TrainingRepository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -27,11 +27,11 @@ import static org.mockito.Mockito.*;
 class TraineeServiceTest {
 
     @Mock
-    private TraineeDAO traineeDAO;
+    private TraineeRepository traineeRepository;
     @Mock
-    private TrainerDAO trainerDAO;
+    private TrainerRepository trainerRepository;
     @Mock
-    private TrainingDAO trainingDAO;
+    private TrainingRepository trainingRepository;
     @Mock
     private ProfileService profileService;
 
@@ -54,14 +54,14 @@ class TraineeServiceTest {
         Trainee trainee = traineeWith("Jane", "Smith", false);
         when(profileService.generateUsername("Jane", "Smith")).thenReturn("Jane.Smith");
         when(profileService.generatePassword()).thenReturn("ABCDE12345");
-        when(traineeDAO.save(trainee)).thenReturn(trainee);
+        when(traineeRepository.save(trainee)).thenReturn(trainee);
 
         Trainee created = traineeService.create(trainee);
 
         assertEquals("Jane.Smith", created.getUser().getUsername());
         assertEquals(10, created.getUser().getPassword().length());
         assertTrue(created.getUser().isActive());
-        verify(traineeDAO).save(trainee);
+        verify(traineeRepository).save(trainee);
     }
 
     @Test
@@ -70,13 +70,13 @@ class TraineeServiceTest {
         trainee.setUser(new User()); // missing firstName/lastName
 
         assertThrows(ValidationException.class, () -> traineeService.create(trainee));
-        verify(traineeDAO, never()).save(any());
+        verify(traineeRepository, never()).save(any());
     }
 
     @Test
     void getByUsername_returnsTrainee() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         Trainee result = traineeService.getByUsername("Jane.Smith");
 
@@ -85,7 +85,7 @@ class TraineeServiceTest {
 
     @Test
     void getByUsername_notFound_throwsEntityNotFound() {
-        when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
+        when(traineeRepository.findByUser_Username("Ghost.User")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class, () -> traineeService.getByUsername("Ghost.User"));
     }
@@ -96,8 +96,8 @@ class TraineeServiceTest {
         Trainee updatedData = traineeWith("New", "Name", false);
         updatedData.setDateOfBirth(LocalDate.of(1990, 5, 5));
         updatedData.setAddress("42 New St");
-        when(traineeDAO.findByUsername("Old.Name")).thenReturn(Optional.of(existing));
-        when(traineeDAO.save(existing)).thenReturn(existing);
+        when(traineeRepository.findByUser_Username("Old.Name")).thenReturn(Optional.of(existing));
+        when(traineeRepository.save(existing)).thenReturn(existing);
 
         Trainee result = traineeService.update("Old.Name", updatedData);
 
@@ -105,74 +105,74 @@ class TraineeServiceTest {
         assertFalse(result.getUser().isActive());
         assertEquals(LocalDate.of(1990, 5, 5), result.getDateOfBirth());
         assertEquals("42 New St", result.getAddress());
-        verify(traineeDAO).save(existing);
+        verify(traineeRepository).save(existing);
     }
 
     @Test
     void activate_inactiveTrainee_activates() {
         Trainee trainee = traineeWith("Jane", "Smith", false);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         traineeService.activate("Jane.Smith");
 
         assertTrue(trainee.getUser().isActive());
-        verify(traineeDAO).save(trainee);
+        verify(traineeRepository).save(trainee);
     }
 
     @Test
     void activate_alreadyActive_throwsValidationAndDoesNotSave() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         assertThrows(ValidationException.class, () -> traineeService.activate("Jane.Smith"));
-        verify(traineeDAO, never()).save(any());
+        verify(traineeRepository, never()).save(any());
     }
 
     @Test
     void deactivate_activeTrainee_deactivates() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         traineeService.deactivate("Jane.Smith");
 
         assertFalse(trainee.getUser().isActive());
-        verify(traineeDAO).save(trainee);
+        verify(traineeRepository).save(trainee);
     }
 
     @Test
     void deactivate_alreadyInactive_throwsValidationAndDoesNotSave() {
         Trainee trainee = traineeWith("Jane", "Smith", false);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         assertThrows(ValidationException.class, () -> traineeService.deactivate("Jane.Smith"));
-        verify(traineeDAO, never()).save(any());
+        verify(traineeRepository, never()).save(any());
     }
 
     @Test
     void deleteByUsername_deletesWhenPresent() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
 
         traineeService.deleteByUsername("Jane.Smith");
 
-        verify(traineeDAO).deleteByUsername("Jane.Smith");
+        verify(traineeRepository).delete(trainee);
     }
 
     @Test
     void deleteByUsername_notFound_throwsEntityNotFound() {
-        when(traineeDAO.findByUsername("Ghost.User")).thenReturn(Optional.empty());
+        when(traineeRepository.findByUser_Username("Ghost.User")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class, () -> traineeService.deleteByUsername("Ghost.User"));
-        verify(traineeDAO, never()).deleteByUsername("Ghost.User");
+        verify(traineeRepository, never()).delete(any(Trainee.class));
     }
 
     @Test
-    void getTrainings_delegatesToTrainingDao() {
+    void getTrainings_delegatesToTrainingRepository() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
         LocalDate from = LocalDate.of(2024, 1, 1);
         LocalDate to = LocalDate.of(2024, 12, 31);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
-        when(trainingDAO.findTraineeTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga"))
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainingRepository.findTraineeTrainings("Jane.Smith", from, to, "Alice.Cooper", "Yoga"))
                 .thenReturn(List.of(new Training()));
 
         List<Training> result =
@@ -182,10 +182,10 @@ class TraineeServiceTest {
     }
 
     @Test
-    void getUnassignedTrainers_delegatesToTraineeDao() {
+    void getUnassignedTrainers_delegatesToTrainerRepository() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
-        when(traineeDAO.findUnassignedTrainers("Jane.Smith")).thenReturn(List.of(new Trainer()));
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerRepository.findUnassignedFor("Jane.Smith")).thenReturn(List.of(new Trainer()));
 
         List<Trainer> result = traineeService.getUnassignedTrainers("Jane.Smith");
 
@@ -199,9 +199,9 @@ class TraineeServiceTest {
         User trainerUser = new User();
         trainerUser.setUsername("Alice.Cooper");
         trainer.setUser(trainerUser);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
-        when(trainerDAO.findByUsername("Alice.Cooper")).thenReturn(Optional.of(trainer));
-        when(traineeDAO.save(trainee)).thenReturn(trainee);
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerRepository.findByUser_Username("Alice.Cooper")).thenReturn(Optional.of(trainer));
+        when(traineeRepository.save(trainee)).thenReturn(trainee);
 
         Trainee result = traineeService.updateTrainers("Jane.Smith", List.of("Alice.Cooper"));
 
@@ -212,11 +212,11 @@ class TraineeServiceTest {
     @Test
     void updateTrainers_unknownTrainer_throwsEntityNotFound() {
         Trainee trainee = traineeWith("Jane", "Smith", true);
-        when(traineeDAO.findByUsername("Jane.Smith")).thenReturn(Optional.of(trainee));
-        when(trainerDAO.findByUsername("Ghost.Trainer")).thenReturn(Optional.empty());
+        when(traineeRepository.findByUser_Username("Jane.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerRepository.findByUser_Username("Ghost.Trainer")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class,
                 () -> traineeService.updateTrainers("Jane.Smith", List.of("Ghost.Trainer")));
-        verify(traineeDAO, never()).save(any());
+        verify(traineeRepository, never()).save(any());
     }
 }

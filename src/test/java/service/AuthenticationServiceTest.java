@@ -1,13 +1,14 @@
 package service;
 
-import dao.UserDAO;
 import exception.AuthenticationException;
+import metrics.GymMetrics;
 import model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import repository.UserRepository;
 
 import java.util.Optional;
 
@@ -18,7 +19,9 @@ import static org.mockito.Mockito.*;
 class AuthenticationServiceTest {
 
     @Mock
-    private UserDAO userDAO;
+    private UserRepository userRepository;
+    @Mock
+    private GymMetrics gymMetrics;
 
     @InjectMocks
     private AuthenticationService authenticationService;
@@ -27,33 +30,37 @@ class AuthenticationServiceTest {
     void authenticate_validCredentials_returnsUser() {
         User user = new User();
         user.setUsername("Jane.Smith");
-        when(userDAO.findByCredentials("Jane.Smith", "secret")).thenReturn(Optional.of(user));
+        when(userRepository.findByUsernameAndPassword("Jane.Smith", "secret")).thenReturn(Optional.of(user));
 
         User result = authenticationService.authenticate("Jane.Smith", "secret");
 
         assertSame(user, result);
+        verify(gymMetrics).recordAuthResult(true);
     }
 
     @Test
     void authenticate_invalidCredentials_throws() {
-        when(userDAO.findByCredentials("Jane.Smith", "wrong")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndPassword("Jane.Smith", "wrong")).thenReturn(Optional.empty());
 
         assertThrows(AuthenticationException.class,
                 () -> authenticationService.authenticate("Jane.Smith", "wrong"));
+        verify(gymMetrics).recordAuthResult(false);
     }
 
     @Test
-    void authenticate_nullUsername_throwsWithoutQueryingDao() {
+    void authenticate_nullUsername_throwsWithoutQueryingRepository() {
         assertThrows(AuthenticationException.class,
                 () -> authenticationService.authenticate(null, "secret"));
-        verifyNoInteractions(userDAO);
+        verifyNoInteractions(userRepository);
+        verify(gymMetrics).recordAuthResult(false);
     }
 
     @Test
-    void authenticate_nullPassword_throwsWithoutQueryingDao() {
+    void authenticate_nullPassword_throwsWithoutQueryingRepository() {
         assertThrows(AuthenticationException.class,
                 () -> authenticationService.authenticate("Jane.Smith", null));
-        verifyNoInteractions(userDAO);
+        verifyNoInteractions(userRepository);
+        verify(gymMetrics).recordAuthResult(false);
     }
 
     @Test
@@ -61,18 +68,20 @@ class AuthenticationServiceTest {
         User user = new User();
         user.setUsername("Jane.Smith");
         user.setPassword("old");
-        when(userDAO.findByCredentials("Jane.Smith", "old")).thenReturn(Optional.of(user));
+        when(userRepository.findByUsernameAndPassword("Jane.Smith", "old")).thenReturn(Optional.of(user));
 
         authenticationService.changeLogin("Jane.Smith", "old", "newSecret");
 
         assertEquals("newSecret", user.getPassword());
+        verify(gymMetrics).recordAuthResult(true);
     }
 
     @Test
     void changeLogin_invalidOldPassword_throwsAndDoesNotChange() {
-        when(userDAO.findByCredentials("Jane.Smith", "wrong")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndPassword("Jane.Smith", "wrong")).thenReturn(Optional.empty());
 
         assertThrows(AuthenticationException.class,
                 () -> authenticationService.changeLogin("Jane.Smith", "wrong", "newSecret"));
+        verify(gymMetrics).recordAuthResult(false);
     }
 }

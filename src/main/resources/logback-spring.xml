@@ -1,19 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [txId=%X{transactionId:-N/A}] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} [%thread] [txId=%X{transactionId:-N/A}] %clr(%-5level) %clr(%logger{36}){cyan} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-    </root>
+    <!-- local + dev: verbose -->
+    <springProfile name="local,dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="repository" level="DEBUG"/>
+        <logger name="service" level="DEBUG"/>
+        <logger name="controller" level="DEBUG"/>
+        <logger name="config" level="DEBUG"/>
+        <logger name="security" level="DEBUG"/>
+    </springProfile>
 
-    <logger name="dao" level="DEBUG"/>
-    <logger name="service" level="DEBUG"/>
-    <logger name="controller" level="DEBUG"/>
-    <logger name="config" level="DEBUG"/>
+    <!-- stg + prod: quieter -->
+    <springProfile name="stg,prod">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="service" level="INFO"/>
+        <logger name="controller" level="INFO"/>
+        <logger name="repository" level="WARN"/>
+        <logger name="config" level="INFO"/>
+    </springProfile>
 
 </configuration>

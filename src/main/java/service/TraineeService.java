@@ -1,8 +1,5 @@
 package service;
 
-import dao.TraineeDAO;
-import dao.TrainerDAO;
-import dao.TrainingDAO;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainee;
@@ -14,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import repository.TraineeRepository;
+import repository.TrainerRepository;
+import repository.TrainingRepository;
 import util.ValidationUtils;
 
 import java.time.LocalDate;
@@ -25,24 +25,24 @@ import java.util.Set;
 public class TraineeService {
     private static final Logger log = LoggerFactory.getLogger(TraineeService.class);
 
-    private TraineeDAO traineeDAO;
-    private TrainerDAO trainerDAO;
-    private TrainingDAO trainingDAO;
+    private TraineeRepository traineeRepository;
+    private TrainerRepository trainerRepository;
+    private TrainingRepository trainingRepository;
     private ProfileService profileService;
 
     @Autowired
-    public void setTraineeDAO(TraineeDAO traineeDAO) {
-        this.traineeDAO = traineeDAO;
+    public void setTraineeRepository(TraineeRepository traineeRepository) {
+        this.traineeRepository = traineeRepository;
     }
 
     @Autowired
-    public void setTrainerDAO(TrainerDAO trainerDAO) {
-        this.trainerDAO = trainerDAO;
+    public void setTrainerRepository(TrainerRepository trainerRepository) {
+        this.trainerRepository = trainerRepository;
     }
 
     @Autowired
-    public void setTrainingDAO(TrainingDAO trainingDAO) {
-        this.trainingDAO = trainingDAO;
+    public void setTrainingRepository(TrainingRepository trainingRepository) {
+        this.trainingRepository = trainingRepository;
     }
 
     @Autowired
@@ -58,7 +58,7 @@ public class TraineeService {
         user.setUsername(profileService.generateUsername(user.getFirstName(), user.getLastName()));
         user.setPassword(profileService.generatePassword());
         user.setActive(true);
-        Trainee saved = traineeDAO.save(trainee);
+        Trainee saved = traineeRepository.save(trainee);
         log.info("Created Trainee profile with username: {}", user.getUsername());
         return saved;
     }
@@ -84,7 +84,7 @@ public class TraineeService {
         existing.setDateOfBirth(updatedData.getDateOfBirth());
         existing.setAddress(updatedData.getAddress());
 
-        Trainee saved = traineeDAO.save(existing);
+        Trainee saved = traineeRepository.save(existing);
         log.info("Updated Trainee profile: {}", username);
         return saved;
     }
@@ -97,7 +97,7 @@ public class TraineeService {
             throw new ValidationException("Trainee '" + username + "' is already active");
         }
         trainee.getUser().setActive(true);
-        traineeDAO.save(trainee);
+        traineeRepository.save(trainee);
         log.info("Activated Trainee: {}", username);
     }
 
@@ -109,15 +109,14 @@ public class TraineeService {
             throw new ValidationException("Trainee '" + username + "' is already inactive");
         }
         trainee.getUser().setActive(false);
-        traineeDAO.save(trainee);
+        traineeRepository.save(trainee);
         log.info("Deactivated Trainee: {}", username);
     }
 
     // Delete Trainee (hard delete; cascades trainings).
     @Transactional
     public void deleteByUsername(String username) {
-        requireTrainee(username);
-        traineeDAO.deleteByUsername(username);
+        traineeRepository.delete(requireTrainee(username));
         log.info("Deleted Trainee profile: {}", username);
     }
 
@@ -130,7 +129,7 @@ public class TraineeService {
                                        String trainingTypeName) {
         requireTrainee(username);
         log.debug("Fetching trainings for Trainee: {}", username);
-        return trainingDAO.findTraineeTrainings(username, fromDate, toDate, trainerName, trainingTypeName);
+        return trainingRepository.findTraineeTrainings(username, fromDate, toDate, trainerName, trainingTypeName);
     }
 
     // Get active trainers not yet assigned to the Trainee.
@@ -138,7 +137,7 @@ public class TraineeService {
     public List<Trainer> getUnassignedTrainers(String username) {
         requireTrainee(username);
         log.debug("Fetching unassigned trainers for Trainee: {}", username);
-        return traineeDAO.findUnassignedTrainers(username);
+        return trainerRepository.findUnassignedFor(username);
     }
 
     // Update the Trainee's trainers list (replaces the whole set).
@@ -149,20 +148,20 @@ public class TraineeService {
         Trainee trainee = requireTrainee(username);
         Set<Trainer> trainers = new HashSet<>();
         for (String trainerUsername : trainerUsernames) {
-            Trainer trainer = trainerDAO.findByUsername(trainerUsername)
+            Trainer trainer = trainerRepository.findByUser_Username(trainerUsername)
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Trainer not found with username: " + trainerUsername));
             trainers.add(trainer);
         }
         trainee.setTrainers(trainers);
 
-        Trainee saved = traineeDAO.save(trainee);
+        Trainee saved = traineeRepository.save(trainee);
         log.info("Updated trainers list for Trainee '{}' -> {} trainer(s)", username, trainers.size());
         return saved;
     }
 
     private Trainee requireTrainee(String username) {
-        return traineeDAO.findByUsername(username)
+        return traineeRepository.findByUser_Username(username)
                 .orElseThrow(() -> new EntityNotFoundException("Trainee not found with username: " + username));
     }
 }

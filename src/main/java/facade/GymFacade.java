@@ -1,5 +1,6 @@
 package facade;
 
+import metrics.GymMetrics;
 import model.Trainee;
 import model.Trainer;
 import model.Training;
@@ -31,29 +32,36 @@ public class GymFacade {
     private final TrainingService trainingService;
     private final TrainingTypeService trainingTypeService;
     private final AuthenticationService authenticationService;
+    private final GymMetrics gymMetrics;
 
     @Autowired
     public GymFacade(TraineeService traineeService,
                      TrainerService trainerService,
                      TrainingService trainingService,
                      TrainingTypeService trainingTypeService,
-                     AuthenticationService authenticationService) {
+                     AuthenticationService authenticationService,
+                     GymMetrics gymMetrics) {
         this.traineeService = traineeService;
         this.trainerService = trainerService;
         this.trainingService = trainingService;
         this.trainingTypeService = trainingTypeService;
         this.authenticationService = authenticationService;
+        this.gymMetrics = gymMetrics;
         log.info("GymFacade initialized with all services.");
     }
 
     // Create Trainee profile (public registration).
     public Trainee createTrainee(Trainee trainee) {
-        return traineeService.create(trainee);
+        Trainee saved = traineeService.create(trainee);
+        gymMetrics.recordTraineeRegistration();
+        return saved;
     }
 
     // Create Trainer profile (public registration).
     public Trainer createTrainer(Trainer trainer) {
-        return trainerService.create(trainer);
+        Trainer saved = trainerService.create(trainer);
+        gymMetrics.recordTrainerRegistration();
+        return saved;
     }
 
     // Login: verify username/password matching.
@@ -132,8 +140,9 @@ public class GymFacade {
                                 String trainingName,
                                 LocalDateTime trainingDate,
                                 Integer trainingDuration) {
-        return trainingService.addTraining(traineeUsername, trainerUsername,
-                trainingName, trainingDate, trainingDuration);
+        return gymMetrics.recordTrainingCreation(() ->
+                trainingService.addTraining(traineeUsername, trainerUsername,
+                        trainingName, trainingDate, trainingDuration));
     }
 
     // Get active trainers not yet assigned to the Trainee.

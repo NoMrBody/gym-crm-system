@@ -1,8 +1,5 @@
 package service;
 
-import dao.TrainerDAO;
-import dao.TrainingDAO;
-import dao.TrainingTypeDAO;
 import exception.ValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import model.Trainer;
@@ -14,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import repository.TrainerRepository;
+import repository.TrainingRepository;
+import repository.TrainingTypeRepository;
 import util.ValidationUtils;
 
 import java.time.LocalDate;
@@ -23,24 +23,24 @@ import java.util.List;
 public class TrainerService {
     private static final Logger log = LoggerFactory.getLogger(TrainerService.class);
 
-    private TrainerDAO trainerDAO;
-    private TrainingDAO trainingDAO;
-    private TrainingTypeDAO trainingTypeDAO;
+    private TrainerRepository trainerRepository;
+    private TrainingRepository trainingRepository;
+    private TrainingTypeRepository trainingTypeRepository;
     private ProfileService profileService;
 
     @Autowired
-    public void setTrainerDAO(TrainerDAO trainerDAO) {
-        this.trainerDAO = trainerDAO;
+    public void setTrainerRepository(TrainerRepository trainerRepository) {
+        this.trainerRepository = trainerRepository;
     }
 
     @Autowired
-    public void setTrainingDAO(TrainingDAO trainingDAO) {
-        this.trainingDAO = trainingDAO;
+    public void setTrainingRepository(TrainingRepository trainingRepository) {
+        this.trainingRepository = trainingRepository;
     }
 
     @Autowired
-    public void setTrainingTypeDAO(TrainingTypeDAO trainingTypeDAO) {
-        this.trainingTypeDAO = trainingTypeDAO;
+    public void setTrainingTypeRepository(TrainingTypeRepository trainingTypeRepository) {
+        this.trainingTypeRepository = trainingTypeRepository;
     }
 
     @Autowired
@@ -59,7 +59,7 @@ public class TrainerService {
         user.setPassword(profileService.generatePassword());
         user.setActive(true);
 
-        Trainer saved = trainerDAO.save(trainer);
+        Trainer saved = trainerRepository.save(trainer);
         log.info("Created Trainer profile with username: {}", user.getUsername());
         return saved;
     }
@@ -84,7 +84,7 @@ public class TrainerService {
         existingUser.setLastName(newUser.getLastName());
         existingUser.setActive(newUser.isActive());
 
-        Trainer saved = trainerDAO.save(existing);
+        Trainer saved = trainerRepository.save(existing);
         log.info("Updated Trainer profile: {}", username);
         return saved;
     }
@@ -97,7 +97,7 @@ public class TrainerService {
             throw new ValidationException("Trainer '" + username + "' is already active");
         }
         trainer.getUser().setActive(true);
-        trainerDAO.save(trainer);
+        trainerRepository.save(trainer);
         log.info("Activated Trainer: {}", username);
     }
 
@@ -109,7 +109,7 @@ public class TrainerService {
             throw new ValidationException("Trainer '" + username + "' is already inactive");
         }
         trainer.getUser().setActive(false);
-        trainerDAO.save(trainer);
+        trainerRepository.save(trainer);
         log.info("Deactivated Trainer: {}", username);
     }
 
@@ -121,7 +121,7 @@ public class TrainerService {
                                        String traineeName) {
         requireTrainer(username);
         log.debug("Fetching trainings for Trainer: {}", username);
-        return trainingDAO.findTrainerTrainings(username, fromDate, toDate, traineeName);
+        return trainingRepository.findTrainerTrainings(username, fromDate, toDate, traineeName);
     }
 
     private TrainingType resolveSpecialization(TrainingType specialization) {
@@ -129,17 +129,17 @@ public class TrainerService {
             throw new ValidationException("specialization is required and cannot be null");
         }
         if (specialization.getId() != null) {
-            return trainingTypeDAO.findById(specialization.getId())
+            return trainingTypeRepository.findById(specialization.getId())
                     .orElseThrow(() -> new EntityNotFoundException(
                             "TrainingType not found with id: " + specialization.getId()));
         }
-        return trainingTypeDAO.findByName(specialization.getTrainingTypeName())
+        return trainingTypeRepository.findByTrainingTypeName(specialization.getTrainingTypeName())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "TrainingType not found with name: " + specialization.getTrainingTypeName()));
     }
 
     private Trainer requireTrainer(String username) {
-        return trainerDAO.findByUsername(username)
+        return trainerRepository.findByUser_Username(username)
                 .orElseThrow(() -> new EntityNotFoundException("Trainer not found with username: " + username));
     }
 }

@@ -1,10 +1,10 @@
 package service;
 
-import dao.UserDAO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import repository.UserRepository;
 
 import java.security.SecureRandom;
 
@@ -12,11 +12,11 @@ import java.security.SecureRandom;
 public class ProfileService {
     private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
 
-    private UserDAO userDAO;
+    private UserRepository userRepository;
 
     @Autowired
-    public void setUserDAO(UserDAO userDAO) {
-        this.userDAO = userDAO;
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     protected String generateUsername(String firstName, String lastName) {
@@ -37,7 +37,7 @@ public class ProfileService {
     }
 
     protected boolean usernameExists(String username) {
-        boolean exists = userDAO.existsByUsername(username);
+        boolean exists = userRepository.existsByUsername(username);
         log.debug("Checking if username '{}' exists: {}", username, exists);
         return exists;
     }

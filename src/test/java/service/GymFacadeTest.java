@@ -1,8 +1,10 @@
 package service;
 
 import facade.GymFacade;
+import metrics.GymMetrics;
 import model.Trainee;
 import model.Trainer;
+import model.Training;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,7 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +32,8 @@ class GymFacadeTest {
     private TrainingTypeService trainingTypeService;
     @Mock
     private AuthenticationService authenticationService;
+    @Mock
+    private GymMetrics gymMetrics;
 
     @InjectMocks
     private GymFacade gymFacade;
@@ -35,15 +41,23 @@ class GymFacadeTest {
     @Test
     void createTrainee_delegates() {
         Trainee trainee = new Trainee();
+        when(traineeService.create(trainee)).thenReturn(trainee);
+
         gymFacade.createTrainee(trainee);
+
         verify(traineeService).create(trainee);
+        verify(gymMetrics).recordTraineeRegistration();
     }
 
     @Test
     void createTrainer_delegates() {
         Trainer trainer = new Trainer();
+        when(trainerService.create(trainer)).thenReturn(trainer);
+
         gymFacade.createTrainer(trainer);
+
         verify(trainerService).create(trainer);
+        verify(gymMetrics).recordTrainerRegistration();
     }
 
     @Test
@@ -133,8 +147,18 @@ class GymFacadeTest {
     @Test
     void addTraining_delegates() {
         LocalDateTime when = LocalDateTime.of(2024, 6, 1, 10, 0);
+        Training training = new Training();
+        when(gymMetrics.recordTrainingCreation(any())).thenAnswer(invocation -> {
+            Supplier<Training> supplier = invocation.getArgument(0);
+            return supplier.get();
+        });
+        when(trainingService.addTraining("Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60))
+                .thenReturn(training);
+
         gymFacade.addTraining("Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
+
         verify(trainingService).addTraining("Jane.Smith", "Alice.Cooper", "Morning Yoga", when, 60);
+        verify(gymMetrics).recordTrainingCreation(any());
     }
 
     @Test
