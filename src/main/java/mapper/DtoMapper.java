@@ -1,6 +1,7 @@
 package mapper;
 
 import dto.CredentialsResponse;
+import dto.TokenResponse;
 import dto.TraineeBrief;
 import dto.TraineeProfileResponse;
 import dto.TraineeRegistrationRequest;
@@ -76,8 +77,14 @@ public class DtoMapper {
 
     // entities -> responses
 
-    public CredentialsResponse toCredentials(User user) {
-        return new CredentialsResponse(user.getUsername(), user.getPassword());
+    // User entity stores only a salted hash, so get the raw password from registration.
+    public CredentialsResponse toCredentials(User user, String rawPassword, TokenResponse token) {
+        return new CredentialsResponse(
+                user.getUsername(),
+                rawPassword,
+                token.accessToken(),
+                token.tokenType(),
+                token.expiresIn());
     }
 
     public TrainingTypeResponse toTrainingType(TrainingType type) {

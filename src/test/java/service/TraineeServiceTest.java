@@ -52,15 +52,20 @@ class TraineeServiceTest {
     @Test
     void create_generatesCredentialsAndActivates() {
         Trainee trainee = traineeWith("Jane", "Smith", false);
-        when(profileService.generateUsername("Jane", "Smith")).thenReturn("Jane.Smith");
-        when(profileService.generatePassword()).thenReturn("ABCDE12345");
+        when(profileService.assignCredentials(trainee.getUser())).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setUsername("Jane.Smith");
+            user.setPassword("{bcrypt}$2a$10$hash");
+            return "ABCDE12345";
+        });
         when(traineeRepository.save(trainee)).thenReturn(trainee);
 
-        Trainee created = traineeService.create(trainee);
+        RegistrationResult<Trainee> created = traineeService.create(trainee);
 
-        assertEquals("Jane.Smith", created.getUser().getUsername());
-        assertEquals(10, created.getUser().getPassword().length());
-        assertTrue(created.getUser().isActive());
+        assertEquals("Jane.Smith", created.profile().getUser().getUsername());
+        assertEquals("ABCDE12345", created.rawPassword());
+        assertEquals("{bcrypt}$2a$10$hash", created.profile().getUser().getPassword());
+        assertTrue(created.profile().getUser().isActive());
         verify(traineeRepository).save(trainee);
     }
 

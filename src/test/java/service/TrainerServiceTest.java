@@ -61,16 +61,21 @@ class TrainerServiceTest {
         TrainingType resolved = type("Yoga");
         Trainer trainer = trainerWith("Alice", "Cooper", false, type("Yoga"));
         when(trainingTypeRepository.findByTrainingTypeName("Yoga")).thenReturn(Optional.of(resolved));
-        when(profileService.generateUsername("Alice", "Cooper")).thenReturn("Alice.Cooper");
-        when(profileService.generatePassword()).thenReturn("ABCDE12345");
+        when(profileService.assignCredentials(trainer.getUser())).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setUsername("Alice.Cooper");
+            user.setPassword("{bcrypt}$2a$10$hash");
+            return "ABCDE12345";
+        });
         when(trainerRepository.save(trainer)).thenReturn(trainer);
 
-        Trainer created = trainerService.create(trainer);
+        RegistrationResult<Trainer> created = trainerService.create(trainer);
 
-        assertEquals("Alice.Cooper", created.getUser().getUsername());
-        assertEquals(10, created.getUser().getPassword().length());
-        assertTrue(created.getUser().isActive());
-        assertSame(resolved, created.getSpecialization());
+        assertEquals("Alice.Cooper", created.profile().getUser().getUsername());
+        assertEquals("ABCDE12345", created.rawPassword());
+        assertEquals("{bcrypt}$2a$10$hash", created.profile().getUser().getPassword());
+        assertTrue(created.profile().getUser().isActive());
+        assertSame(resolved, created.profile().getSpecialization());
         verify(trainerRepository).save(trainer);
     }
 

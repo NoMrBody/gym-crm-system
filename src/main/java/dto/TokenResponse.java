@@ -2,13 +2,8 @@ package dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "Generated credentials plus a bearer token for the new profile")
-public record CredentialsResponse(
-        String username,
-
-        @Schema(description = "Generated password, shown only once at registration")
-        String password,
-
+@Schema(description = "Bearer token issued on login or registration")
+public record TokenResponse(
         @Schema(description = "Signed JWT to send as 'Authorization: Bearer <token>'")
         String accessToken,
 

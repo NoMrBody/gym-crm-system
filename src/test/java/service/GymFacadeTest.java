@@ -1,10 +1,12 @@
 package service;
 
+import dto.TokenResponse;
 import facade.GymFacade;
 import metrics.GymMetrics;
 import model.Trainee;
 import model.Trainer;
 import model.Training;
+import model.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -38,24 +42,48 @@ class GymFacadeTest {
     @InjectMocks
     private GymFacade gymFacade;
 
-    @Test
-    void createTrainee_delegates() {
+    private static Trainee traineeNamed(String username) {
+        User user = new User();
+        user.setUsername(username);
         Trainee trainee = new Trainee();
-        when(traineeService.create(trainee)).thenReturn(trainee);
+        trainee.setUser(user);
+        return trainee;
+    }
 
-        gymFacade.createTrainee(trainee);
+    private static Trainer trainerNamed(String username) {
+        User user = new User();
+        user.setUsername(username);
+        Trainer trainer = new Trainer();
+        trainer.setUser(user);
+        return trainer;
+    }
 
+    @Test
+    void createTrainee_delegatesAndAttachesToken() {
+        Trainee trainee = traineeNamed("Jane.Smith");
+        TokenResponse token = new TokenResponse("token-value", "Bearer", 3600);
+        when(traineeService.create(trainee)).thenReturn(new RegistrationResult<>(trainee, "rawPassword"));
+        when(authenticationService.issueTokenFor("Jane.Smith")).thenReturn(token);
+
+        RegistrationResult<Trainee> result = gymFacade.createTrainee(trainee);
+
+        assertEquals("rawPassword", result.rawPassword());
+        assertSame(token, result.token());
         verify(traineeService).create(trainee);
         verify(gymMetrics).recordTraineeRegistration();
     }
 
     @Test
-    void createTrainer_delegates() {
-        Trainer trainer = new Trainer();
-        when(trainerService.create(trainer)).thenReturn(trainer);
+    void createTrainer_delegatesAndAttachesToken() {
+        Trainer trainer = trainerNamed("Alice.Cooper");
+        TokenResponse token = new TokenResponse("token-value", "Bearer", 3600);
+        when(trainerService.create(trainer)).thenReturn(new RegistrationResult<>(trainer, "rawPassword"));
+        when(authenticationService.issueTokenFor("Alice.Cooper")).thenReturn(token);
 
-        gymFacade.createTrainer(trainer);
+        RegistrationResult<Trainer> result = gymFacade.createTrainer(trainer);
 
+        assertEquals("rawPassword", result.rawPassword());
+        assertSame(token, result.token());
         verify(trainerService).create(trainer);
         verify(gymMetrics).recordTrainerRegistration();
     }
@@ -63,7 +91,7 @@ class GymFacadeTest {
     @Test
     void login_delegatesToAuthentication() {
         gymFacade.login("Jane.Smith", "pw");
-        verify(authenticationService).authenticate("Jane.Smith", "pw");
+        verify(authenticationService).login("Jane.Smith", "pw");
     }
 
     @Test

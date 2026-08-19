@@ -50,18 +50,17 @@ public class TrainerService {
 
     // Create Trainer profile. Generates username/password, marks the profile active (public registration).
     @Transactional
-    public Trainer create(Trainer trainer) {
+    public RegistrationResult<Trainer> create(Trainer trainer) {
         ValidationUtils.validateTrainer(trainer);
         trainer.setSpecialization(resolveSpecialization(trainer.getSpecialization()));
 
         User user = trainer.getUser();
-        user.setUsername(profileService.generateUsername(user.getFirstName(), user.getLastName()));
-        user.setPassword(profileService.generatePassword());
+        String rawPassword = profileService.assignCredentials(user);
         user.setActive(true);
 
         Trainer saved = trainerRepository.save(trainer);
         log.info("Created Trainer profile with username: {}", user.getUsername());
-        return saved;
+        return new RegistrationResult<>(saved, rawPassword);
     }
 
     // Get Trainer profile by username.

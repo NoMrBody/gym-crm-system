@@ -1,5 +1,6 @@
 package controller;
 
+import dto.TokenResponse;
 import exception.GlobalExceptionHandler;
 import facade.GymFacade;
 import jakarta.persistence.EntityNotFoundException;
@@ -14,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import service.RegistrationResult;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -52,8 +54,12 @@ class TraineeControllerTest {
     }
 
     @Test
-    void register_valid_returns201WithCredentials() throws Exception {
-        when(gymFacade.createTrainee(any())).thenReturn(trainee("Jane.Smith", "pw12345678", true));
+    void register_valid_returns201WithCredentialsAndToken() throws Exception {
+        RegistrationResult<Trainee> created = new RegistrationResult<>(
+                trainee("Jane.Smith", "{bcrypt}$2a$10$hash", true),
+                "pw12345678",
+                new TokenResponse("token-value", "Bearer", 3600));
+        when(gymFacade.createTrainee(any())).thenReturn(created);
         String body = """
                 {"firstName":"Jane","lastName":"Smith"}
                 """;
@@ -63,7 +69,10 @@ class TraineeControllerTest {
                         .content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.username").value("Jane.Smith"))
-                .andExpect(jsonPath("$.password").value("pw12345678"));
+                .andExpect(jsonPath("$.password").value("pw12345678"))
+                .andExpect(jsonPath("$.accessToken").value("token-value"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").value(3600));
     }
 
     @Test

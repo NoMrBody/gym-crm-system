@@ -52,15 +52,14 @@ public class TraineeService {
 
     // Create Trainee profile. Generates credentials and activates (public registration).
     @Transactional
-    public Trainee create(Trainee trainee) {
+    public RegistrationResult<Trainee> create(Trainee trainee) {
         ValidationUtils.validateTrainee(trainee);
         User user = trainee.getUser();
-        user.setUsername(profileService.generateUsername(user.getFirstName(), user.getLastName()));
-        user.setPassword(profileService.generatePassword());
+        String rawPassword = profileService.assignCredentials(user);
         user.setActive(true);
         Trainee saved = traineeRepository.save(trainee);
         log.info("Created Trainee profile with username: {}", user.getUsername());
-        return saved;
+        return new RegistrationResult<>(saved, rawPassword);
     }
 
     // Get Trainee profile by username.

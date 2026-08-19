@@ -1,8 +1,10 @@
 package service;
 
+import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import repository.UserRepository;
 
@@ -13,10 +15,27 @@ public class ProfileService {
     private static final Logger log = LoggerFactory.getLogger(ProfileService.class);
 
     private UserRepository userRepository;
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     public void setUserRepository(UserRepository userRepository) {
         this.userRepository = userRepository;
+    }
+
+    @Autowired
+    public void setPasswordEncoder(PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    /**
+     * Assigns a generated username and password to the user, storing only the salted hash.
+     * The returned raw password is the single opportunity to show it to the caller.
+     */
+    public String assignCredentials(User user) {
+        user.setUsername(generateUsername(user.getFirstName(), user.getLastName()));
+        String rawPassword = generatePassword();
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        return rawPassword;
     }
 
     protected String generateUsername(String firstName, String lastName) {

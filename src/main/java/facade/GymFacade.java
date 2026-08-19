@@ -1,12 +1,13 @@
 package facade;
 
+import dto.TokenResponse;
 import metrics.GymMetrics;
 import model.Trainee;
 import model.Trainer;
 import model.Training;
 import model.TrainingType;
-import model.User;
 import service.AuthenticationService;
+import service.RegistrationResult;
 import service.TraineeService;
 import service.TrainerService;
 import service.TrainingService;
@@ -21,7 +22,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Facade for gym CRM operations. Only {@link #login} and {@link #changeLogin} require password verification; all others use username.
+ * Facade for gym CRM operations. Only {@link #login} and {@link #changeLogin} require password
+ * verification; all others act on an already authenticated caller and take a username.
  */
 @Component
 public class GymFacade {
@@ -50,23 +52,25 @@ public class GymFacade {
         log.info("GymFacade initialized with all services.");
     }
 
-    // Create Trainee profile (public registration).
-    public Trainee createTrainee(Trainee trainee) {
-        Trainee saved = traineeService.create(trainee);
+    // Create Trainee profile (public registration). Returns credentials and a ready-to-use token.
+    public RegistrationResult<Trainee> createTrainee(Trainee trainee) {
+        RegistrationResult<Trainee> created = traineeService.create(trainee);
         gymMetrics.recordTraineeRegistration();
-        return saved;
+        return created.withToken(
+                authenticationService.issueTokenFor(created.profile().getUser().getUsername()));
     }
 
-    // Create Trainer profile (public registration).
-    public Trainer createTrainer(Trainer trainer) {
-        Trainer saved = trainerService.create(trainer);
+    // Create Trainer profile (public registration). Returns credentials and a ready-to-use token.
+    public RegistrationResult<Trainer> createTrainer(Trainer trainer) {
+        RegistrationResult<Trainer> created = trainerService.create(trainer);
         gymMetrics.recordTrainerRegistration();
-        return saved;
+        return created.withToken(
+                authenticationService.issueTokenFor(created.profile().getUser().getUsername()));
     }
 
-    // Login: verify username/password matching.
-    public User login(String username, String password) {
-        return authenticationService.authenticate(username, password);
+    // Login: verify credentials and issue a bearer token.
+    public TokenResponse login(String username, String password) {
+        return authenticationService.login(username, password);
     }
 
     // Change login password (verifies old password).

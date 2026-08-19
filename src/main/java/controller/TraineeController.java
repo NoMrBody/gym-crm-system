@@ -12,6 +12,7 @@ import facade.GymFacade;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import mapper.DtoMapper;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import service.RegistrationResult;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -50,15 +52,19 @@ public class TraineeController {
     }
 
     @PostMapping
-    @Operation(summary = "Register a trainee", description = "Creates a trainee profile and returns generated credentials.")
+    @SecurityRequirements
+    @Operation(summary = "Register a trainee",
+            description = "Public endpoint. Creates a trainee profile and returns the generated "
+                    + "credentials together with a bearer token.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Trainee created"),
             @ApiResponse(responseCode = "400", description = "Validation error")
     })
     public ResponseEntity<CredentialsResponse> register(@Valid @RequestBody TraineeRegistrationRequest request) {
         log.info("Registering trainee: {} {}", request.firstName(), request.lastName());
-        Trainee saved = gymFacade.createTrainee(mapper.toTraineeEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toCredentials(saved.getUser()));
+        RegistrationResult<Trainee> created = gymFacade.createTrainee(mapper.toTraineeEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toCredentials(
+                created.profile().getUser(), created.rawPassword(), created.token()));
     }
 
     @GetMapping("/{username}")

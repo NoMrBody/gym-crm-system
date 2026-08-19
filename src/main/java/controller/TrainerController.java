@@ -10,6 +10,7 @@ import facade.GymFacade;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import mapper.DtoMapper;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import service.RegistrationResult;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -47,7 +49,10 @@ public class TrainerController {
     }
 
     @PostMapping
-    @Operation(summary = "Register a trainer", description = "Creates a trainer profile and returns generated credentials.")
+    @SecurityRequirements
+    @Operation(summary = "Register a trainer",
+            description = "Public endpoint. Creates a trainer profile and returns the generated "
+                    + "credentials together with a bearer token.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Trainer created"),
             @ApiResponse(responseCode = "400", description = "Validation error"),
@@ -55,8 +60,9 @@ public class TrainerController {
     })
     public ResponseEntity<CredentialsResponse> register(@Valid @RequestBody TrainerRegistrationRequest request) {
         log.info("Registering trainer: {} {}", request.firstName(), request.lastName());
-        Trainer saved = gymFacade.createTrainer(mapper.toTrainerEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toCredentials(saved.getUser()));
+        RegistrationResult<Trainer> created = gymFacade.createTrainer(mapper.toTrainerEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toCredentials(
+                created.profile().getUser(), created.rawPassword(), created.token()));
     }
 
     @GetMapping("/{username}")
