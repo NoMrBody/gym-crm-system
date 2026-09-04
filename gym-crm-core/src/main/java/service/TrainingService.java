@@ -7,12 +7,15 @@ import model.Training;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import repository.TraineeRepository;
 import repository.TrainerRepository;
 import repository.TrainingRepository;
 import util.ValidationUtils;
+import workload.ActionType;
+import workload.TrainingChangedEvent;
 
 import java.time.LocalDateTime;
 
@@ -23,10 +26,16 @@ public class TrainingService {
     private TrainingRepository trainingRepository;
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public void setTrainingRepository(TrainingRepository trainingRepository) {
         this.trainingRepository = trainingRepository;
+    }
+
+    @Autowired
+    public void setEventPublisher(ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
     }
 
     @Autowired
@@ -66,6 +75,9 @@ public class TrainingService {
 
         trainee.getTrainers().add(trainer);
         trainer.getTrainees().add(trainee);
+
+        // Delivered to trainer-workload-service only once this transaction commits.
+        eventPublisher.publishEvent(TrainingChangedEvent.of(ActionType.ADD, saved));
 
         log.info("Added training '{}' for Trainee '{}' with Trainer '{}'",
                 trainingName, traineeUsername, trainerUsername);

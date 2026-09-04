@@ -5,7 +5,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = {
-        "config", "controller", "exception", "facade", "mapper", "service", "util", "metrics", "health", "security"
+        "config", "controller", "exception", "facade", "mapper", "service", "util", "metrics", "health", "security",
+        "workload"
 })
 @EntityScan("model")
 @EnableJpaRepositories("repository")

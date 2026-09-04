@@ -9,12 +9,15 @@ import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import repository.TraineeRepository;
 import repository.TrainerRepository;
 import repository.TrainingRepository;
 import util.ValidationUtils;
+import workload.ActionType;
+import workload.TrainingChangedEvent;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -29,6 +32,12 @@ public class TraineeService {
     private TrainerRepository trainerRepository;
     private TrainingRepository trainingRepository;
     private ProfileService profileService;
+    private ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    public void setEventPublisher(ApplicationEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
+    }
 
     @Autowired
     public void setTraineeRepository(TraineeRepository traineeRepository) {
@@ -115,8 +124,19 @@ public class TraineeService {
     // Delete Trainee (hard delete; cascades trainings).
     @Transactional
     public void deleteByUsername(String username) {
-        traineeRepository.delete(requireTrainee(username));
-        log.info("Deleted Trainee profile: {}", username);
+        Trainee trainee = requireTrainee(username);
+
+        // Snapshot the trainings before the cascade removes them, so each one can still be
+        // cancelled on the trainer's monthly workload once this transaction commits.
+        List<TrainingChangedEvent> workloadEvents = trainee.getTrainings().stream()
+                .map(training -> TrainingChangedEvent.of(ActionType.DELETE, training))
+                .toList();
+
+        traineeRepository.delete(trainee);
+        workloadEvents.forEach(eventPublisher::publishEvent);
+
+        log.info("Deleted Trainee profile: {} ({} workload cancellation(s) emitted)",
+                username, workloadEvents.size());
     }
 
     // Get Trainee trainings list by optional criteria.

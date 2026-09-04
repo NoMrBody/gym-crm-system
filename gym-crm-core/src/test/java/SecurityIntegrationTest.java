@@ -45,6 +45,10 @@ class SecurityIntegrationTest {
     @MockitoBean
     private metrics.GymStatsCollector gymStatsCollector;
 
+    /** No trainer-workload-service is running, so the outgoing calls must not leave the JVM. */
+    @MockitoBean
+    private workload.TrainerWorkloadClient trainerWorkloadClient;
+
     private record Credentials(String username, String password, String token) {
     }
 
