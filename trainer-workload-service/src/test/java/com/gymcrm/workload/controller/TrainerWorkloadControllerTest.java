@@ -2,33 +2,34 @@ package com.gymcrm.workload.controller;
 
 import com.gymcrm.workload.config.SecurityConfig;
 import com.gymcrm.workload.config.TransactionLoggingFilter;
+import com.gymcrm.workload.dto.TrainerWorkloadRequest;
+import com.gymcrm.workload.model.ActionType;
+import com.gymcrm.workload.service.TrainerWorkloadService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Contract and security checks against the real application context. The {@code jwt()}
- * post-processor stands in for gym-crm-core's signed token, so these tests cover the
+ * post-processor stands in for an end-user token, so these tests cover the
  * authorisation rules without minting real JWTs.
  *
  * <p>All tests share one in-memory database, so each one uses its own trainer username.
+ * Workload rows are seeded through the service: updates now arrive over JMS, not REST.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -40,11 +41,8 @@ class TrainerWorkloadControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    /** A token like the one gym-crm-core mints for itself. */
-    private static RequestPostProcessor serviceToken() {
-        return jwt().jwt(jwt -> jwt.subject("gym-crm-core").claim("roles", List.of("ROLE_SERVICE")))
-                .authorities(new SimpleGrantedAuthority("ROLE_SERVICE"));
-    }
+    @Autowired
+    private TrainerWorkloadService workloadService;
 
     /** A token like the one an end user gets after logging in to gym-crm-core. */
     private static RequestPostProcessor userToken() {
@@ -52,67 +50,16 @@ class TrainerWorkloadControllerTest {
                 .authorities(new SimpleGrantedAuthority("ROLE_TRAINEE"));
     }
 
-    private static MockHttpServletRequestBuilder submit(String body) {
-        return post(WORKLOADS).contentType(MediaType.APPLICATION_JSON).content(body);
-    }
-
-    private static String event(String username, String date, int duration, String actionType) {
-        return """
-                {"trainerUsername":"%s","trainerFirstName":"Alice","trainerLastName":"Cooper",
-                 "isActive":true,"trainingDate":"%s","trainingDuration":%d,"actionType":"%s"}
-                """.formatted(username, date, duration, actionType);
-    }
-
-    private void report(String username, String date, int duration, String actionType) throws Exception {
-        mockMvc.perform(submit(event(username, date, duration, actionType)).with(serviceToken()))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void submitWorkload_withoutToken_returns401() throws Exception {
-        mockMvc.perform(submit(event("No.Token", "2026-03-12", 60, "ADD")))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Authentication required"));
-    }
-
-    @Test
-    void submitWorkload_withAUserToken_returns403() throws Exception {
-        mockMvc.perform(submit(event("User.Token", "2026-03-12", 60, "ADD")).with(userToken()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Access denied"));
-    }
-
-    @Test
-    void submitWorkload_withTheServiceToken_returns200AndAnEmptyBody() throws Exception {
-        mockMvc.perform(submit(event("Service.Token", "2026-03-12", 60, "ADD")).with(serviceToken()))
-                .andExpect(status().isOk())
-                .andExpect(content().string(""));
-    }
-
-    @Test
-    void submitWorkload_withAnInvalidBody_returns400WithFieldDetails() throws Exception {
-        String missingFields = """
-                {"trainerUsername":"","trainingDuration":-5,"actionType":"ADD"}
-                """;
-
-        mockMvc.perform(submit(missingFields).with(serviceToken()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Validation failed"))
-                .andExpect(jsonPath("$.details").isNotEmpty());
-    }
-
-    @Test
-    void submitWorkload_withAnUnknownActionType_returns400() throws Exception {
-        mockMvc.perform(submit(event("Bad.Action", "2026-03-12", 60, "ARCHIVE")).with(serviceToken()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Malformed request body"));
+    private void report(String username, String date, int duration, ActionType actionType) {
+        workloadService.apply(new TrainerWorkloadRequest(
+                username, "Alice", "Cooper", true, LocalDate.parse(date), duration, actionType));
     }
 
     @Test
     void getSummary_returnsTheTotalsGroupedByYearAndMonth() throws Exception {
-        report("Summary.Trainer", "2026-03-12", 60, "ADD");
-        report("Summary.Trainer", "2026-03-28", 45, "ADD");
-        report("Summary.Trainer", "2027-01-05", 30, "ADD");
+        report("Summary.Trainer", "2026-03-12", 60, ActionType.ADD);
+        report("Summary.Trainer", "2026-03-28", 45, ActionType.ADD);
+        report("Summary.Trainer", "2027-01-05", 30, ActionType.ADD);
 
         mockMvc.perform(get(WORKLOADS + "/Summary.Trainer").with(userToken()))
                 .andExpect(status().isOk())
@@ -143,9 +90,9 @@ class TrainerWorkloadControllerTest {
 
     @Test
     void getMonthlyWorkload_reflectsAddsAndDeletes() throws Exception {
-        report("Monthly.Trainer", "2026-05-02", 90, "ADD");
-        report("Monthly.Trainer", "2026-05-19", 60, "ADD");
-        report("Monthly.Trainer", "2026-05-19", 60, "DELETE");
+        report("Monthly.Trainer", "2026-05-02", 90, ActionType.ADD);
+        report("Monthly.Trainer", "2026-05-19", 60, ActionType.ADD);
+        report("Monthly.Trainer", "2026-05-19", 60, ActionType.DELETE);
 
         mockMvc.perform(get(WORKLOADS + "/Monthly.Trainer/years/2026/months/5").with(userToken()))
                 .andExpect(status().isOk())
@@ -157,7 +104,7 @@ class TrainerWorkloadControllerTest {
 
     @Test
     void getMonthlyWorkload_forAMonthWithoutTrainings_returnsZero() throws Exception {
-        report("Empty.Month", "2026-05-02", 90, "ADD");
+        report("Empty.Month", "2026-05-02", 90, ActionType.ADD);
 
         mockMvc.perform(get(WORKLOADS + "/Empty.Month/years/2026/months/11").with(userToken()))
                 .andExpect(status().isOk())
@@ -166,7 +113,7 @@ class TrainerWorkloadControllerTest {
 
     @Test
     void getMonthlyWorkload_withAnOutOfRangeMonth_returns400() throws Exception {
-        report("Bad.Month", "2026-05-02", 90, "ADD");
+        report("Bad.Month", "2026-05-02", 90, ActionType.ADD);
 
         mockMvc.perform(get(WORKLOADS + "/Bad.Month/years/2026/months/13").with(userToken()))
                 .andExpect(status().isBadRequest())

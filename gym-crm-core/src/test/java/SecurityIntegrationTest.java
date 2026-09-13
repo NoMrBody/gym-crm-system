@@ -45,9 +45,9 @@ class SecurityIntegrationTest {
     @MockitoBean
     private metrics.GymStatsCollector gymStatsCollector;
 
-    /** No trainer-workload-service is running, so the outgoing calls must not leave the JVM. */
+    /** Workload publishing is not under test here; a mock keeps JMS auto-config intact. */
     @MockitoBean
-    private workload.TrainerWorkloadClient trainerWorkloadClient;
+    private workload.TrainerWorkloadService trainerWorkloadService;
 
     private record Credentials(String username, String password, String token) {
     }

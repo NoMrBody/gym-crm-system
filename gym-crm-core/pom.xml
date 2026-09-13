@@ -8,7 +8,7 @@
         <groupId>com.gymcrm</groupId>
         <artifactId>gym-crm-system</artifactId>
         <version>1.0-SNAPSHOT</version>
-        <relativePath>..</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>gym-crm-core</artifactId>
@@ -52,16 +52,13 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
-        <!--
-          RestClient plus the HTTP service client auto-configuration behind
-          spring.http.serviceclient.*; it is not pulled in by spring-boot-starter-web.
-        -->
+        <!-- Fire-and-forget workload events; the broker itself is not embedded here. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-restclient</artifactId>
+            <artifactId>spring-boot-starter-activemq</artifactId>
         </dependency>
 
-        <!-- Circuit breaker around the outgoing workload calls. -->
+        <!-- Circuit breaker around the outgoing workload sends. -->
         <dependency>
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-spring-boot4</artifactId>
@@ -112,6 +109,13 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- VM-transport broker so @SpringBootTest never needs Docker. -->
+        <dependency>
+            <groupId>org.apache.activemq</groupId>
+            <artifactId>activemq-broker</artifactId>
             <scope>test</scope>
         </dependency>
 

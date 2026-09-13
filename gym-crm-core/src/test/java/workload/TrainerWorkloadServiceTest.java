@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.client.ResourceAccessException;
+import org.springframework.jms.UncategorizedJmsException;
+import org.springframework.jms.core.JmsTemplate;
+import org.springframework.jms.core.MessagePostProcessor;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -16,6 +18,7 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,9 +27,10 @@ import static org.mockito.Mockito.verify;
 class TrainerWorkloadServiceTest {
 
     private static final int FAILURES_BEFORE_OPEN = 3;
+    private static final String QUEUE = "gym.trainer.workload";
 
     @Mock
-    private TrainerWorkloadClient client;
+    private JmsTemplate jmsTemplate;
 
     private CircuitBreakerRegistry registry;
     private TrainerWorkloadService service;
@@ -41,7 +45,7 @@ class TrainerWorkloadServiceTest {
                 .failureRateThreshold(50)
                 .waitDurationInOpenState(Duration.ofMinutes(1))
                 .build());
-        service = new TrainerWorkloadService(client, registry);
+        service = new TrainerWorkloadService(jmsTemplate, registry, QUEUE);
     }
 
     @Test
@@ -50,21 +54,21 @@ class TrainerWorkloadServiceTest {
 
         service.notifyWorkloadChange(request);
 
-        verify(client).submitWorkload(request);
+        verify(jmsTemplate).convertAndSend(eq(QUEUE), eq(request), any(MessagePostProcessor.class));
     }
 
     @Test
     void aFailingCallIsSwallowedSoTheTrainingStillSucceeds() {
-        doThrow(new ResourceAccessException("connection refused"))
-                .when(client).submitWorkload(any());
+        doThrow(new UncategorizedJmsException("broker down"))
+                .when(jmsTemplate).convertAndSend(eq(QUEUE), any(), any(MessagePostProcessor.class));
 
         assertDoesNotThrow(() -> service.notifyWorkloadChange(request(ActionType.ADD)));
     }
 
     @Test
     void onceTheBreakerOpensTheClientIsNoLongerCalled() {
-        doThrow(new ResourceAccessException("connection refused"))
-                .when(client).submitWorkload(any());
+        doThrow(new UncategorizedJmsException("broker down"))
+                .when(jmsTemplate).convertAndSend(eq(QUEUE), any(), any(MessagePostProcessor.class));
 
         for (int attempt = 0; attempt < FAILURES_BEFORE_OPEN; attempt++) {
             service.notifyWorkloadChange(request(ActionType.ADD));
@@ -76,7 +80,8 @@ class TrainerWorkloadServiceTest {
         service.notifyWorkloadChange(request(ActionType.ADD));
         service.notifyWorkloadChange(request(ActionType.DELETE));
 
-        verify(client, times(FAILURES_BEFORE_OPEN)).submitWorkload(any());
+        verify(jmsTemplate, times(FAILURES_BEFORE_OPEN))
+                .convertAndSend(eq(QUEUE), any(), any(MessagePostProcessor.class));
     }
 
     private static TrainerWorkloadRequest request(ActionType actionType) {

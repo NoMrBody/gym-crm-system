@@ -20,8 +20,8 @@ public class OpenApiConfig {
                         .title("Trainer Workload REST API")
                         .version("1.0")
                         .description("Tracks the monthly training hours of each trainer. "
-                                + "Every endpoint requires an 'Authorization: Bearer <token>' header; "
-                                + "reporting a workload additionally requires the ROLE_SERVICE authority."))
+                                + "Every endpoint requires an 'Authorization: Bearer <token>' header. "
+                                + "Workload updates are consumed from ActiveMQ, not this API."))
                 .components(new Components()
                         .addSecuritySchemes(BEARER_AUTH_SCHEME, new SecurityScheme()
                                 .name(BEARER_AUTH_SCHEME)

@@ -1,14 +1,12 @@
 package com.gymcrm.workload.controller;
 
 import com.gymcrm.workload.dto.MonthlyWorkloadResponse;
-import com.gymcrm.workload.dto.TrainerWorkloadRequest;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse;
 import com.gymcrm.workload.service.TrainerWorkloadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.slf4j.Logger;
@@ -16,8 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,23 +27,6 @@ public class TrainerWorkloadController {
 
     public TrainerWorkloadController(TrainerWorkloadService workloadService) {
         this.workloadService = workloadService;
-    }
-
-    @PostMapping
-    @Operation(summary = "Report a training session",
-            description = "Adds or removes a training session's duration from the trainer's monthly total.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Workload updated"),
-            @ApiResponse(responseCode = "400", description = "Validation error"),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid token"),
-            @ApiResponse(responseCode = "403", description = "Caller is not a service account")
-    })
-    public ResponseEntity<Void> submitWorkload(@Valid @RequestBody TrainerWorkloadRequest request) {
-        log.info("Received {} workload event for trainer '{}' on {} ({} minutes)",
-                request.actionType(), request.trainerUsername(),
-                request.trainingDate(), request.trainingDuration());
-        workloadService.apply(request);
-        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{username}")
