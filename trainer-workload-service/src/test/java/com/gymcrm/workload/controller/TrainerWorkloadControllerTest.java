@@ -1,5 +1,6 @@
 package com.gymcrm.workload.controller;
 
+import com.gymcrm.workload.AbstractMongoIntegrationTest;
 import com.gymcrm.workload.config.SecurityConfig;
 import com.gymcrm.workload.config.TransactionLoggingFilter;
 import com.gymcrm.workload.dto.TrainerWorkloadRequest;
@@ -28,13 +29,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * post-processor stands in for an end-user token, so these tests cover the
  * authorisation rules without minting real JWTs.
  *
- * <p>All tests share one in-memory database, so each one uses its own trainer username.
- * Workload rows are seeded through the service: updates now arrive over JMS, not REST.
+ * <p>All tests share one MongoDB container, so each one uses its own trainer username.
+ * Workload documents are seeded through the service: updates now arrive over JMS, not REST.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class TrainerWorkloadControllerTest {
+class TrainerWorkloadControllerTest extends AbstractMongoIntegrationTest {
 
     private static final String WORKLOADS = SecurityConfig.WORKLOADS_PATH;
 

@@ -1,7 +1,6 @@
 package com.gymcrm.workload.exception;
 
 import com.gymcrm.workload.dto.ErrorResponse;
-import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -49,10 +48,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Malformed request body", null);
     }
 
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(EntityNotFoundException ex) {
-        log.warn("Entity not found: {}", ex.getMessage());
+    @ExceptionHandler(TrainerNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTrainerNotFound(TrainerNotFoundException ex) {
+        log.warn("Trainer not found: {}", ex.getMessage());
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), null);
+
     }
 
     @ExceptionHandler(AccessDeniedException.class)

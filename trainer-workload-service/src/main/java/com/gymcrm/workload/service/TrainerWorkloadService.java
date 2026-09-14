@@ -1,29 +1,31 @@
 package com.gymcrm.workload.service;
 
-import com.gymcrm.workload.dto.TrainerWorkloadRequest;
 import com.gymcrm.workload.dto.MonthlyWorkloadResponse;
+import com.gymcrm.workload.dto.TrainerWorkloadRequest;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.MonthSummary;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.TrainerStatus;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.YearSummary;
+import com.gymcrm.workload.exception.TrainerNotFoundException;
 import com.gymcrm.workload.model.MonthlyWorkload;
-import com.gymcrm.workload.model.TrainerWorkload;
+import com.gymcrm.workload.model.TrainerWorkloadDocument;
+import com.gymcrm.workload.model.YearWorkload;
 import com.gymcrm.workload.repository.TrainerWorkloadRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 
 /**
  * Maintains the monthly training totals per trainer. The trainer's own details are
  * refreshed from every incoming event, so the summary always reflects the latest profile.
+ *
+ * <p>One trainer is one MongoDB document, so each event is a single-document write and
+ * needs no transaction.
  */
 @Service
 public class TrainerWorkloadService {
@@ -35,107 +37,133 @@ public class TrainerWorkloadService {
         this.repository = repository;
     }
 
-    @Transactional
     public void apply(TrainerWorkloadRequest request) {
+        String username = request.trainerUsername();
         int year = request.trainingDate().getYear();
         int month = request.trainingDate().getMonthValue();
 
-        TrainerWorkload workload = repository.findById(request.trainerUsername())
-                .orElseGet(() -> newWorkload(request.trainerUsername()));
-        workload.setFirstName(request.trainerFirstName());
-        workload.setLastName(request.trainerLastName());
-        workload.setActive(request.isActive());
+        Optional<TrainerWorkloadDocument> existing = repository.findByUsername(username);
+        TrainerWorkloadDocument document = existing.orElseGet(() -> newDocument(username));
+
+        document.setTrainerFirstName(request.trainerFirstName());
+        document.setTrainerLastName(request.trainerLastName());
+        document.setTrainerStatus(request.isActive());
 
         switch (request.actionType()) {
-            case ADD -> add(workload, year, month, request.trainingDuration());
-            case DELETE -> subtract(workload, year, month, request.trainingDuration());
+            case ADD -> add(document, year, month, request.trainingDuration());
+            case DELETE -> subtract(document, year, month, request.trainingDuration());
         }
 
-        repository.save(workload);
-        log.info("Applied {} of {} minutes for trainer '{}' in {}-{}: month total is now {} minutes",
-                request.actionType(), request.trainingDuration(), request.trainerUsername(),
-                year, month, durationOf(workload, year, month));
+        log.debug("Mongo save on trainer_workloads '{}': {} year bucket(s)",
+                username, document.getYears().size());
+        repository.save(document);
+
+        log.info("{} {} of {} minutes for trainer '{}' in {}-{}: month total is now {} minutes",
+                existing.isPresent() ? "Applied" : "Created a document and applied",
+                request.actionType(), request.trainingDuration(), username, year, month,
+                durationOf(document, year, month));
     }
 
-    @Transactional(readOnly = true)
     public TrainerWorkloadSummaryResponse getSummary(String trainerUsername) {
-        TrainerWorkload workload = requireTrainer(trainerUsername);
+        TrainerWorkloadDocument document = requireTrainer(trainerUsername);
         log.debug("Building workload summary for trainer '{}'", trainerUsername);
 
-        // TreeMaps keep both years and months in ascending order without a final sort pass.
-        Map<Integer, Map<Integer, Integer>> byYear = new TreeMap<>();
-        for (MonthlyWorkload monthly : workload.getMonthlyWorkloads()) {
-            byYear.computeIfAbsent(monthly.getTrainingYear(), year -> new TreeMap<>())
-                    .merge(monthly.getTrainingMonth(), monthly.getTotalDuration(), Integer::sum);
-        }
-
-        List<YearSummary> years = byYear.entrySet().stream()
-                .map(yearEntry -> new YearSummary(yearEntry.getKey(),
-                        yearEntry.getValue().entrySet().stream()
-                                .map(monthEntry -> new MonthSummary(monthEntry.getKey(), monthEntry.getValue()))
+        // The document already groups by year, so the summary only needs an ascending order.
+        List<YearSummary> years = document.getYears().stream()
+                .sorted(Comparator.comparingInt(YearWorkload::getYear))
+                .map(yearBucket -> new YearSummary(yearBucket.getYear(),
+                        yearBucket.getMonths().stream()
+                                .sorted(Comparator.comparingInt(MonthlyWorkload::getMonth))
+                                .map(monthly -> new MonthSummary(
+                                        monthly.getMonth(), monthly.getTrainingSummaryDuration()))
                                 .toList()))
                 .toList();
 
         return new TrainerWorkloadSummaryResponse(
-                workload.getTrainerUsername(),
-                workload.getFirstName(),
-                workload.getLastName(),
-                TrainerStatus.of(workload.isActive()),
+                document.getTrainerUsername(),
+                document.getTrainerFirstName(),
+                document.getTrainerLastName(),
+                TrainerStatus.of(document.isTrainerStatus()),
                 years);
     }
 
-    @Transactional(readOnly = true)
     public MonthlyWorkloadResponse getMonthlyWorkload(String trainerUsername, int year, int month) {
-        TrainerWorkload workload = requireTrainer(trainerUsername);
+        TrainerWorkloadDocument document = requireTrainer(trainerUsername);
         log.debug("Fetching {}-{} workload for trainer '{}'", year, month, trainerUsername);
-        return new MonthlyWorkloadResponse(trainerUsername, year, month, durationOf(workload, year, month));
+        return new MonthlyWorkloadResponse(trainerUsername, year, month, durationOf(document, year, month));
     }
 
-    private void add(TrainerWorkload workload, int year, int month, int duration) {
-        find(workload, year, month).ifPresentOrElse(
-                monthly -> monthly.setTotalDuration(monthly.getTotalDuration() + duration),
-                () -> workload.getMonthlyWorkloads().add(new MonthlyWorkload(year, month, duration)));
+    private void add(TrainerWorkloadDocument document, int year, int month, int duration) {
+        YearWorkload yearBucket = findYear(document, year).orElseGet(() -> {
+            YearWorkload created = new YearWorkload(year, new ArrayList<>());
+            document.getYears().add(created);
+            return created;
+        });
+
+        findMonth(yearBucket, month).ifPresentOrElse(
+                monthly -> monthly.setTrainingSummaryDuration(
+                        monthly.getTrainingSummaryDuration() + duration),
+                () -> yearBucket.getMonths().add(new MonthlyWorkload(month, duration)));
     }
 
-    private void subtract(TrainerWorkload workload, int year, int month, int duration) {
-        find(workload, year, month).ifPresentOrElse(monthly -> {
-            int remaining = monthly.getTotalDuration() - duration;
-            if (remaining < 0) {
-                log.warn("Cancelling {} minutes for trainer '{}' in {}-{} exceeds the recorded {} minutes; clamping to 0",
-                        duration, workload.getTrainerUsername(), year, month, monthly.getTotalDuration());
-                remaining = 0;
-            }
-            if (remaining == 0) {
-                workload.getMonthlyWorkloads().remove(monthly);
-            } else {
-                monthly.setTotalDuration(remaining);
-            }
-        }, () -> log.warn("Cancelling {} minutes for trainer '{}' in {}-{}, but no workload is recorded for that month",
-                duration, workload.getTrainerUsername(), year, month));
+    private void subtract(TrainerWorkloadDocument document, int year, int month, int duration) {
+        Optional<YearWorkload> yearBucket = findYear(document, year);
+        Optional<MonthlyWorkload> monthly = yearBucket.flatMap(bucket -> findMonth(bucket, month));
+        if (monthly.isEmpty()) {
+            log.warn("Cancelling {} minutes for trainer '{}' in {}-{}, but no workload is recorded for that month",
+                    duration, document.getTrainerUsername(), year, month);
+            return;
+        }
+
+        int recorded = monthly.get().getTrainingSummaryDuration();
+        int remaining = recorded - duration;
+        if (remaining < 0) {
+            log.warn("Cancelling {} minutes for trainer '{}' in {}-{} exceeds the recorded {} minutes; clamping to 0",
+                    duration, document.getTrainerUsername(), year, month, recorded);
+            remaining = 0;
+        }
+
+        if (remaining > 0) {
+            monthly.get().setTrainingSummaryDuration(remaining);
+            return;
+        }
+
+        // An emptied month leaves an empty year behind, which would still show up in the summary.
+        yearBucket.get().getMonths().removeIf(candidate -> candidate.getMonth() == month);
+        if (yearBucket.get().getMonths().isEmpty()) {
+            document.getYears().removeIf(candidate -> candidate.getYear() == year);
+        }
     }
 
-    private static Optional<MonthlyWorkload> find(TrainerWorkload workload, int year, int month) {
-        return workload.getMonthlyWorkloads().stream()
-                .filter(monthly -> monthly.isFor(year, month))
+    private static Optional<YearWorkload> findYear(TrainerWorkloadDocument document, int year) {
+        return document.getYears().stream()
+                .filter(yearBucket -> yearBucket.getYear() == year)
                 .findFirst();
     }
 
-    private static int durationOf(TrainerWorkload workload, int year, int month) {
-        return find(workload, year, month)
-                .map(MonthlyWorkload::getTotalDuration)
+    private static Optional<MonthlyWorkload> findMonth(YearWorkload yearBucket, int month) {
+        return yearBucket.getMonths().stream()
+                .filter(monthly -> monthly.getMonth() == month)
+                .findFirst();
+    }
+
+    private static int durationOf(TrainerWorkloadDocument document, int year, int month) {
+        return findYear(document, year)
+                .flatMap(yearBucket -> findMonth(yearBucket, month))
+                .map(MonthlyWorkload::getTrainingSummaryDuration)
                 .orElse(0);
     }
 
-    private TrainerWorkload requireTrainer(String trainerUsername) {
-        return repository.findById(trainerUsername)
-                .orElseThrow(() -> new EntityNotFoundException(
+    private TrainerWorkloadDocument requireTrainer(String trainerUsername) {
+        return repository.findByUsername(trainerUsername)
+                .orElseThrow(() -> new TrainerNotFoundException(
                         "No workload recorded for trainer: " + trainerUsername));
     }
 
-    private static TrainerWorkload newWorkload(String trainerUsername) {
-        TrainerWorkload workload = new TrainerWorkload();
-        workload.setTrainerUsername(trainerUsername);
-        workload.setMonthlyWorkloads(new ArrayList<>());
-        return workload;
+    private static TrainerWorkloadDocument newDocument(String trainerUsername) {
+        TrainerWorkloadDocument document = new TrainerWorkloadDocument();
+        document.setTrainerUsername(trainerUsername);
+        document.setYears(new ArrayList<>());
+        return document;
     }
 }

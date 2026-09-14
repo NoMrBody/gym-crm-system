@@ -7,6 +7,10 @@ services:
   mongo:
     image: mongo:8
     container_name: mongo
+    # MongoDB 8.0+ refuses to start on Linux kernels 6.19 through 7.0.13 (SERVER-121912,
+    # a vendored TCMalloc/rseq incompatibility). This tunable sidesteps it.
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
     ports:
       - "27017:27017"
     volumes:

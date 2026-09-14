@@ -34,7 +34,7 @@ public class TransactionLoggingFilter extends OncePerRequestFilter {
     public static final String TRANSACTION_HEADER = "X-Transaction-Id";
 
     private static final int MAX_BODY_CHARS = 1024;
-    private static final String[] UNLOGGED_PREFIXES = {"/actuator", "/swagger-ui", "/v3/api-docs", "/h2-console"};
+    private static final String[] UNLOGGED_PREFIXES = {"/actuator", "/swagger-ui", "/v3/api-docs"};
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,

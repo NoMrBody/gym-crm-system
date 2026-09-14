@@ -1,11 +1,12 @@
 package com.gymcrm.workload.jms;
 
+import com.gymcrm.workload.AbstractMongoIntegrationTest;
 import com.gymcrm.workload.config.JmsConfig;
 import com.gymcrm.workload.dto.TrainerWorkloadRequest;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse;
 import com.gymcrm.workload.model.ActionType;
 import com.gymcrm.workload.service.TrainerWorkloadService;
-import jakarta.persistence.EntityNotFoundException;
+import com.gymcrm.workload.exception.TrainerNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @ActiveProfiles("test")
-class WorkloadMessageListenerTest {
+class WorkloadMessageListenerTest extends AbstractMongoIntegrationTest {
 
     @Autowired
     private JmsTemplate jmsTemplate;
@@ -66,11 +67,11 @@ class WorkloadMessageListenerTest {
 
     private TrainerWorkloadSummaryResponse awaitSummary(String username) {
         long deadline = System.currentTimeMillis() + 5_000;
-        EntityNotFoundException last = null;
+        TrainerNotFoundException last = null;
         while (System.currentTimeMillis() < deadline) {
             try {
                 return workloadService.getSummary(username);
-            } catch (EntityNotFoundException ex) {
+            } catch (TrainerNotFoundException ex) {
                 last = ex;
                 try {
                     Thread.sleep(50);
@@ -80,7 +81,7 @@ class WorkloadMessageListenerTest {
                 }
             }
         }
-        throw last != null ? last : new EntityNotFoundException("No workload recorded for trainer: " + username);
+        throw last != null ? last : new TrainerNotFoundException("No workload recorded for trainer: " + username);
     }
 
     @Test
@@ -98,7 +99,7 @@ class WorkloadMessageListenerTest {
                 workloadService.getSummary("");
                 stillMissing = false;
                 break;
-            } catch (EntityNotFoundException ignored) {
+            } catch (TrainerNotFoundException ignored) {
                 try {
                     Thread.sleep(50);
                 } catch (InterruptedException interrupted) {

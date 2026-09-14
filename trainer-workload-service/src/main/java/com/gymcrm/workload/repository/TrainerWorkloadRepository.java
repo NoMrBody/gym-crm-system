@@ -1,7 +1,12 @@
 package com.gymcrm.workload.repository;
 
-import com.gymcrm.workload.model.TrainerWorkload;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.gymcrm.workload.model.TrainerWorkloadDocument;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
-public interface TrainerWorkloadRepository extends JpaRepository<TrainerWorkload, String> {
+import java.util.List;
+
+public interface TrainerWorkloadRepository
+        extends MongoRepository<TrainerWorkloadDocument, String>, TrainerWorkloadRepositoryCustom {
+    List<TrainerWorkloadDocument> findByTrainerFirstNameAndTrainerLastName(String firstName, String lastName);
+
 }

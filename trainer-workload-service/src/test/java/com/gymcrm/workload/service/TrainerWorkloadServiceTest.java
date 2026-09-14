@@ -6,10 +6,10 @@ import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.MonthSummary;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.TrainerStatus;
 import com.gymcrm.workload.dto.TrainerWorkloadSummaryResponse.YearSummary;
+import com.gymcrm.workload.exception.TrainerNotFoundException;
 import com.gymcrm.workload.model.ActionType;
-import com.gymcrm.workload.model.TrainerWorkload;
+import com.gymcrm.workload.model.TrainerWorkloadDocument;
 import com.gymcrm.workload.repository.TrainerWorkloadRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,6 +61,29 @@ class TrainerWorkloadServiceTest {
     }
 
     @Test
+    void add_addsASecondMonthToTheExistingYear() {
+        service.apply(request(ActionType.ADD, LocalDate.of(2026, 3, 12), 60));
+
+        service.apply(request(ActionType.ADD, LocalDate.of(2026, 4, 1), 30));
+
+        assertEquals(List.of(new YearSummary(2026,
+                        List.of(new MonthSummary(3, 60), new MonthSummary(4, 30)))),
+                service.getSummary(USERNAME).years());
+    }
+
+    @Test
+    void add_addsASecondYearBucket() {
+        service.apply(request(ActionType.ADD, LocalDate.of(2026, 3, 12), 60));
+
+        service.apply(request(ActionType.ADD, LocalDate.of(2027, 3, 1), 30));
+
+        assertEquals(List.of(
+                        new YearSummary(2026, List.of(new MonthSummary(3, 60))),
+                        new YearSummary(2027, List.of(new MonthSummary(3, 30)))),
+                service.getSummary(USERNAME).years());
+    }
+
+    @Test
     void delete_subtractsFromTheMonthTotal() {
         service.apply(request(ActionType.ADD, LocalDate.of(2026, 3, 12), 60));
         service.apply(request(ActionType.ADD, LocalDate.of(2026, 3, 28), 45));
@@ -78,6 +101,17 @@ class TrainerWorkloadServiceTest {
 
         assertTrue(service.getSummary(USERNAME).years().isEmpty());
         assertEquals(0, service.getMonthlyWorkload(USERNAME, 2026, 3).trainingSummaryDuration());
+    }
+
+    @Test
+    void delete_keepsTheYearWhileAnotherMonthStillHasTrainings() {
+        service.apply(request(ActionType.ADD, LocalDate.of(2026, 3, 12), 60));
+        service.apply(request(ActionType.ADD, LocalDate.of(2026, 4, 1), 30));
+
+        service.apply(request(ActionType.DELETE, LocalDate.of(2026, 3, 12), 60));
+
+        assertEquals(List.of(new YearSummary(2026, List.of(new MonthSummary(4, 30)))),
+                service.getSummary(USERNAME).years());
     }
 
     @Test
@@ -126,13 +160,13 @@ class TrainerWorkloadServiceTest {
     }
 
     @Test
-    void getSummary_unknownTrainer_throwsEntityNotFound() {
-        assertThrows(EntityNotFoundException.class, () -> service.getSummary("Ghost.Trainer"));
+    void getSummary_unknownTrainer_throwsTrainerNotFound() {
+        assertThrows(TrainerNotFoundException.class, () -> service.getSummary("Ghost.Trainer"));
     }
 
     @Test
-    void getMonthlyWorkload_unknownTrainer_throwsEntityNotFound() {
-        assertThrows(EntityNotFoundException.class,
+    void getMonthlyWorkload_unknownTrainer_throwsTrainerNotFound() {
+        assertThrows(TrainerNotFoundException.class,
                 () -> service.getMonthlyWorkload("Ghost.Trainer", 2026, 3));
     }
 
@@ -152,19 +186,19 @@ class TrainerWorkloadServiceTest {
     }
 
     /**
-     * The service only reads and writes single aggregates, so a map behind findById/save
-     * is enough to exercise the accumulation logic without a Spring context.
+     * The service only reads and writes one document at a time, so a map behind
+     * findByUsername/save exercises the accumulation logic without Mongo or a Spring context.
      */
     private static TrainerWorkloadRepository inMemoryRepository() {
-        Map<String, TrainerWorkload> store = new HashMap<>();
+        Map<String, TrainerWorkloadDocument> store = new HashMap<>();
         TrainerWorkloadRepository repository = mock(TrainerWorkloadRepository.class);
 
-        when(repository.findById(anyString()))
+        when(repository.findByUsername(anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(store.get(invocation.<String>getArgument(0))));
-        when(repository.save(any(TrainerWorkload.class))).thenAnswer(invocation -> {
-            TrainerWorkload entity = invocation.getArgument(0);
-            store.put(entity.getTrainerUsername(), entity);
-            return entity;
+        when(repository.save(any(TrainerWorkloadDocument.class))).thenAnswer(invocation -> {
+            TrainerWorkloadDocument document = invocation.getArgument(0);
+            store.put(document.getTrainerUsername(), document);
+            return document;
         });
 
         return repository;
