@@ -18,7 +18,7 @@ public abstract class AbstractMongoIntegrationTest {
 
     @Container
     @ServiceConnection
-    static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8")
+    public static final MongoDBContainer MONGO = new MongoDBContainer("mongo:8")
             // MongoDB 8.0+ refuses to start on Linux kernels 6.19 through 7.0.13
             // (SERVER-121912, a vendored TCMalloc/rseq incompatibility).
             .withEnv("GLIBC_TUNABLES", "glibc.pthread.rseq=1");
